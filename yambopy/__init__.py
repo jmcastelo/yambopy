@@ -117,3 +117,6 @@ from yambopy.gkkp.refine_gkkp import *
 
 #data
 from yambopy.data import *
+
+#brillouin
+from yambopy.brillouin import *
