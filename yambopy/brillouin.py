@@ -1,22 +1,5 @@
 from yambopy import *
 
-def interpolate(kpoint1, kpoint2, nkpoints):
-    delta21 = kpoint2 - kpoint1
-
-    interpolated_points = []
-
-    for i in range(nkpoints):
-        interpolated_points.append(kpoint1 + delta21 * (i + 1) / (nkpoints + 1))
-
-    return interpolated_points
-
-def check_list_level(lst, level = 0):
-    if level > 1:
-        raise ValueError('Path must be list of subpaths specified by k-points labels.')
-    for item in lst:
-        if isinstance(item, list):
-            check_list_level(item, level + 1)
-
 class CUB():
     def __init__(self):
         self.name = 'Cubic'
@@ -153,12 +136,12 @@ class BrillouinZone():
         elif all(isinstance(subipoints, list) for subipoints in ipoints):
             for subipoints in ipoints:
                 if not all(isinstance(i, int) and i >= 0 for i in subipoints):
-                    raise ValueError(f"Interpolating k-point number must be an positive integer or zero: {i}")
+                    raise ValueError(f"Interpolating k-point number must be an positive integer or zero: {subipoints}")
             # Check consistency between ipoints and path
             nipoints1 = [len(subpath) - 1 for subpath in path]
             nipoints2 = [len(subipoints) for subipoints in ipoints]
             if nipoints1 != nipoints2:
-                raise ValueError("Path and interpolating k-points  mismatch.")
+                raise ValueError("Path and interpolating k-points mismatch.")
         else:
             raise ValueError("Interpolating k-points must be positive integer number, zero or list of lists.")
 
@@ -200,36 +183,6 @@ class BrillouinZone():
             self.nipoints = self.get_number_interpolating_points(self.interpolating_points)
 
         self.set_legacy_path()
-
-    def set_legacy_path(self):
-        """"
-        LEGACY: Obtain path in reduced coordinates, labels and intervals
-        """
-        # Obtain path in reduced coordinates
-
-        path_red = self.transform_path_to_reduced(self.path, self.in_coord_type)
-        
-        # Flatten path
-
-        path_red = [kpoint for subpath in path_red for kpoint in subpath]
-
-        # Legacy data structures
-
-        self.kpoints = np.array(path_red)
-        self.klabels = self.get_path_labels(self.path)
-        self.intervals = self.get_intervals(self.interpolating_points)
-
-    def as_dict(self):
-        """
-        LEGACY: Obtain path as dictionary
-        """
-        d = {
-            'kpoints': self.kpoints.tolist(),
-            'klabels': self.klabels,
-            'intervals': self.intervals
-        }
-
-        return d
 
     def get_interpolated_path(self, out_coord_type = 'car', qe_out = False):
         """
@@ -317,7 +270,12 @@ class BrillouinZone():
         for n in range(len(path)):
             for i in range(len(path[n]) - 1):
                 interpolated_path.append(path[n][i])
-                interpolated_path += interpolate(path[n][i], path[n][i + 1], self.interpolating_points[n][i])
+                
+                delta21 = path[n][i + 1] - path[n][i]
+                nipoints = self.interpolating_points[n][i]
+                for j in range(nipoints):
+                    interpolated_path.append(path[n][i] + delta21 * (j + 1) / (nipoints + 1))
+
             interpolated_path.append(path[n][-1])
 
         return np.array(interpolated_path)
@@ -354,21 +312,6 @@ class BrillouinZone():
 
         return np.array(distances)
 
-    def distances(self):
-        """
-        Obtain list of distances between first and consecutive k-points on interpolated path.
-        """
-        distance = 0
-        distances = []
-        kpoint1 = self.interpolated_path_car[0]
-
-        for kpoint2 in self.interpolated_path_car:
-            distance += np.linalg.norm(kpoint1 - kpoint2)
-            distances.append(distance)
-            kpoint1 = kpoint2
-    
-        return distances
-
     def get_path_labels(self, path):
         """
         Obtain list of labels of k-points on path 
@@ -404,6 +347,24 @@ class BrillouinZone():
 
         return intervals
 
+    def set_legacy_path(self):
+        """"
+        Set path in reduced coordinates, labels and intervals
+        """
+        # Obtain path in reduced coordinates
+
+        path_red = self.transform_path_to_reduced(self.path, self.in_coord_type)
+        
+        # Flatten path
+
+        path_red = [kpoint for subpath in path_red for kpoint in subpath]
+
+        # Legacy data structures
+
+        self.kpoints = np.array(path_red)
+        self.klabels = self.get_path_labels(self.path)
+        self.intervals = self.get_intervals(self.interpolating_points)
+
     def get_legacy_path(self):
         """
         Construct and return a legacy Path object
@@ -413,3 +374,62 @@ class BrillouinZone():
         klist = [list(k) for k in zip(self.kpoints.tolist(), self.klabels)]
 
         return Path(klist, self.intervals)
+
+    def as_dict(self):
+        """
+        LEGACY: Obtain path as dictionary
+        """
+        d = {
+            'kpoints': self.kpoints.tolist(),
+            'klabels': self.klabels,
+            'intervals': self.intervals
+        }
+        return d
+
+    def distances(self):
+        """
+        LEGACY: Obtain list of distances between first and consecutive k-points on path.
+        """
+        distance = 0
+        distances = []
+        kpoint1 = self.kpoints[0]
+
+        for kpoint2 in self.kpoints:
+            distance += np.linalg.norm(kpoint1 - kpoint2)
+            distances.append(distance)
+            kpoint1 = kpoint2
+    
+        return distances
+
+    def set_xticks(self, ax):
+        """
+        LEGACY: Set x-axis ticks and labels
+        """
+        ax.set_xticks(self.distances())
+        ax.set_xticklabels(self.klabels)
+
+    def __iter__(self):
+        """
+        LEGACY: Iterator???
+        """
+        return iter(zip(self.kpoints, self.klabels, self.distances()))
+
+    def get_klist(self):
+        """
+        LEGACY: Output in the format of QE == [ [Kx, Ky, Kz, 1], ... ]
+        """
+        return self.get_interpolated_path('red', True)
+
+    def get_indexes(self):
+        """
+        LEGACY: Obtain index of each k-point on path
+        """
+        indexes = []
+        index = 0
+
+        for n, interval in enumerate(self.intervals):
+            indexes.append([index, self.klabels[n]])
+            index += interval
+        indexes.append([index, self.klabels[-1]])
+
+        return indexes
