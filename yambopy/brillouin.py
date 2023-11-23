@@ -138,29 +138,29 @@ class BrillouinZone():
                         print(err.args[0], 'is not a high symmetry point of', self.bz.name, 'lattice.')
                         raise
 
-    def check_intervals_structure(self, intervals, path):
+    def check_interpolating_points_structure(self, ipoints, path):
         """
-        Check if given intervals is valid and consistent with given path
+        Check if given interpolating points are valid and consistent with given path
         """
         # Check structure
 
-        if not isinstance(intervals, list):
-            raise ValueError("Intervals must be list of subintervals.")
+        if not isinstance(ipoints, list) and not isinstance(ipoints, int):
+            raise ValueError("Interpolating k-points must be positive integer number, zero or list of lists.")
 
-        if all(isinstance(subinterval, list) for subinterval in intervals):
-            for subinterval in intervals:
-                if not all(isinstance(i, int) for i in subinterval):
-                    raise ValueError(f"Interval must be an integer number: {i}")
+        if isinstance(ipoints, int):
+            if ipoints < 0:
+                raise ValueError("Number of interpolating k-points must be positive integer or zero.")
+        elif all(isinstance(subipoints, list) for subipoints in ipoints):
+            for subipoints in ipoints:
+                if not all(isinstance(i, int) and i >= 0 for i in subipoints):
+                    raise ValueError(f"Interpolating k-point number must be an positive integer or zero: {i}")
+            # Check consistency between ipoints and path
+            nipoints1 = [len(subpath) - 1 for subpath in path]
+            nipoints2 = [len(subipoints) for subipoints in ipoints]
+            if nipoints1 != nipoints2:
+                raise ValueError("Path and interpolating k-points  mismatch.")
         else:
-            raise ValueError("Intervals must be list of subintervals.")
-
-        # Check consistency
-
-        nintervals1 = [len(subpath) - 1 for subpath in path]
-        nintervals2 = [len(subinterval) for subinterval in intervals]
-
-        if nintervals1 != nintervals2:
-            raise ValueError("Path and intervals mismatch.")
+            raise ValueError("Interpolating k-points must be positive integer number, zero or list of lists.")
 
     def set_path(self, **kwargs):
         """
@@ -170,8 +170,8 @@ class BrillouinZone():
         # Get arguments
 
         path = kwargs.get('path', self.bz.default_path)
-        self.intervals = kwargs.get('intervals', None)
         in_coord_type = kwargs.get('in_coord_type', 'red')
+        ipoints = kwargs.get('ipoints', 100)
 
         # Check input coordinates type
 
@@ -186,34 +186,64 @@ class BrillouinZone():
         self.check_path_labels(path)
         
         self.path = path
+        self.path_car = self.transform_path_to_cartesian(path, in_coord_type)
 
-        # Check intervals structure
+        # Check and parse interpolating points
+        
+        self.check_interpolating_points_structure(ipoints, path)
 
-        if self.intervals != None:
-            self.check_intervals_structure(self.intervals, self.path)
+        if isinstance(ipoints, int):
+            self.nipoints = ipoints
+            self.interpolating_points = self.get_interpolating_points(self.path_car)
+        else:
+            self.interpolating_points = ipoints
+            self.nipoints = self.get_number_interpolating_points(self.interpolating_points)
 
-    def get_interpolated_path(self, out_coord_type = 'car', qe_out = False,  nkpoints = 100):
+        self.set_legacy_path()
+
+    def set_legacy_path(self):
+        """"
+        LEGACY: Obtain path in reduced coordinates, labels and intervals
+        """
+        # Obtain path in reduced coordinates
+
+        path_red = self.transform_path_to_reduced(self.path, self.in_coord_type)
+        
+        # Flatten path
+
+        path_red = [kpoint for subpath in path_red for kpoint in subpath]
+
+        # Legacy data structures
+
+        self.kpoints = np.array(path_red)
+        self.klabels = self.get_path_labels(self.path)
+        self.intervals = self.get_intervals(self.interpolating_points)
+
+    def as_dict(self):
+        """
+        LEGACY: Obtain path as dictionary
+        """
+        d = {
+            'kpoints': self.kpoints.tolist(),
+            'klabels': self.klabels,
+            'intervals': self.intervals
+        }
+
+        return d
+
+    def get_interpolated_path(self, out_coord_type = 'car', qe_out = False):
         """
         Constructs path given high symmetry points labels of selected Brillouin zone, with given number of
         interpolated points, expressed in cartesian or reduced coordinates. Optionally, output in QE format.
         """
-        # Check nkpoints
-
-        if nkpoints < 0:
-            raise ValueError('Number of k-points must be positive integer.')
-
         # Check output coordinates type
 
         if out_coord_type != 'car' and out_coord_type != 'red':
             raise ValueError('Unrecognized output coordinates type:', out_coord_type)
 
-        # Transform path to cartesian coordinates
-        
-        path_car = self.transform_path_to_cartesian(self.path, self.in_coord_type)
-
         # Interpolate path
 
-        ipath = self.interpolate_path(path_car, nkpoints)
+        ipath = self.interpolate_path(self.path_car)
         self.interpolated_path_car = ipath
 
         # Express it in reduced coordinates
@@ -275,37 +305,27 @@ class BrillouinZone():
 
         return path_red
 
-    def interpolate_path(self, path, nkpoints):
+    def interpolate_path(self, path):
         """
         Given path in cartesian coordinates, interpolate given number of k-points,
         returning interpolated path as array of k-points.
         """
-        nkpoints = int(nkpoints)
-
-        # Obtain number of interpolating points between consecutive k-points on path
-        
-        if self.intervals != None:
-            subpath_nkpoints = self.intervals
-        else:
-            subpath_nkpoints = self.get_interpolating_points(path, nkpoints)
-
         # Obtain interpolated path
 
         interpolated_path = []
+
         for n in range(len(path)):
             for i in range(len(path[n]) - 1):
                 interpolated_path.append(path[n][i])
-                interpolated_path += interpolate(path[n][i], path[n][i + 1], subpath_nkpoints[n][i])
+                interpolated_path += interpolate(path[n][i], path[n][i + 1], self.interpolating_points[n][i])
             interpolated_path.append(path[n][-1])
 
         return np.array(interpolated_path)
 
-    def get_interpolating_points(self, path, nkpoints):
+    def get_interpolating_points(self, path):
         """
         Given path in cartesian coordinates, spread given number of k-points proportionally to inter-point lengths
         """
-        nkpoints = int(nkpoints)
-
         # Obtain distances between consecutive points on path
 
         distances = [self.inter_distances(subpath) for subpath in path]
@@ -318,7 +338,7 @@ class BrillouinZone():
 
         # Obtain number of interpolated k-points on each subpath
 
-        subpath_nkpoints = [[int(nkpoints * distance / path_length) for distance in subdistances] for subdistances in distances]
+        subpath_nkpoints = [[int(self.nipoints * distance / path_length) for distance in subdistances] for subdistances in distances]
 
         return subpath_nkpoints
 
@@ -364,45 +384,32 @@ class BrillouinZone():
 
         return labels
 
-    def get_legacy_path(self, nkpoints):
+    def get_number_interpolating_points(self, ipoints):
         """
-        Construct and return a legacy Path object
+        Obtain number of interpolating k-points as given by interpolating points
         """
-        # Check nkpoints
+        return sum([i for subipoints in ipoints for i in subipoints])
 
-        if nkpoints < 0:
-            raise ValueError('Number of k-points must be positive integer.')
-
-        # Obtain path labels
-
-        labels = self.get_path_labels(self.path)
-
-        # Obtain path in reduced coordinates
-
-        path_red = self.transform_path_to_reduced(self.path, self.in_coord_type)
-        path_red = [kpoint for subpath in path_red for kpoint in subpath]
-
-        # Construct list of k-points and labels
-
-        klist = [list(k) for k in zip(path_red, labels)]
-
-        # Obtain path in cartesian coordinates
-
-        path_car = self.transform_path_to_cartesian(self.path, self.in_coord_type)
-
-        # Obtain intervals
-
-        if self.intervals != None:
-            interpolating_points = self.intervals
-        else:
-            interpolating_points = self.get_interpolating_points(path_car, nkpoints)
-
+    def get_intervals(self, interpolating_points):
+        """
+        Obtain intervals
+        """
         intervals = []
-
+        
         for subpath in interpolating_points:
             for ipoints in subpath:
                 intervals.append(ipoints + 1)
             intervals.append(1)
         intervals.pop()
 
-        return Path(klist, intervals)
+        return intervals
+
+    def get_legacy_path(self):
+        """
+        Construct and return a legacy Path object
+        """
+        # Construct list of k-points and labels
+
+        klist = [list(k) for k in zip(self.kpoints.tolist(), self.klabels)]
+
+        return Path(klist, self.intervals)
