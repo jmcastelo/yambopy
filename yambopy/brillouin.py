@@ -117,6 +117,12 @@ class BrillouinZone():
             self.interpolating_points = ipoints
             self.nipoints = self.get_number_interpolating_points()
 
+        # Reset interpolated path in cartesian coordinates
+
+        self.interpolated_path_car = None
+
+        # Set legacy path
+
         self.set_legacy_path()
 
     def get_interpolated_path(self, out_coord_type = 'car', qe_out = False):
@@ -127,19 +133,37 @@ class BrillouinZone():
         # Check output coordinates type
 
         if out_coord_type != 'car' and out_coord_type != 'red':
-            raise ValueError('Unrecognized output coordinates type:', out_coord_type)
+            raise ValueError(f"Unrecognized output coordinates type: {out_coord_type}")
 
-        # Interpolate path
+        # Interpolate path: only if not yet done
 
-        ipath = self.interpolate_path()
-        self.interpolated_path_car = ipath
+        if not isinstance(self.interpolated_path_car, np.ndarray):
+            ipath = []
 
-        # Express it in reduced coordinates
+            for n in range(len(self.path_car)):
+                for i in range(len(self.path_car[n]) - 1):
+                    ipath.append(self.path_car[n][i])
+                
+                    delta21 = self.path_car[n][i + 1] - self.path_car[n][i]
+                    
+                    nipoints = self.interpolating_points[n][i]
+                    
+                    for j in range(nipoints):
+                        ipath.append(self.path_car[n][i] + delta21 * (j + 1) / (nipoints + 1))
+
+                ipath.append(self.path_car[n][-1])
+
+            ipath = np.array(ipath)
+            self.interpolated_path_car = ipath
+        else:
+            ipath = self.interpolated_path_car
+
+        # Express it in reduced coordinates?
         
         if out_coord_type == 'red':
             ipath = car_red(ipath, self.rlattice)
 
-        # QE output format: [ [Kx, Ky, Kz, 1], ... ]
+        # QE output format: [ [Kx, Ky, Kz, 1], ... ]?
         
         if qe_out:
             qepath = []
@@ -148,28 +172,6 @@ class BrillouinZone():
             ipath = np.array(qepath)
 
         return ipath
-
-    def interpolate_path(self):
-        """
-        Given path in cartesian coordinates, interpolate given number of k-points,
-        returning interpolated path as array of k-points.
-        """
-        # Obtain interpolated path
-
-        interpolated_path = []
-
-        for n in range(len(self.path_car)):
-            for i in range(len(self.path_car[n]) - 1):
-                interpolated_path.append(self.path_car[n][i])
-                
-                delta21 = self.path_car[n][i + 1] - self.path_car[n][i]
-                nipoints = self.interpolating_points[n][i]
-                for j in range(nipoints):
-                    interpolated_path.append(self.path_car[n][i] + delta21 * (j + 1) / (nipoints + 1))
-
-            interpolated_path.append(self.path_car[n][-1])
-
-        return np.array(interpolated_path)
 
     def get_interpolating_points(self):
         """
