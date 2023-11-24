@@ -179,7 +179,14 @@ class BrillouinZone():
         """
         # Obtain distances between consecutive points on path
 
-        distances = [self.inter_distances(subpath) for subpath in self.path_car]
+        distances = []
+
+        for subpath in self.path_car:
+            kpoints = np.array(subpath)
+            subpath_distances = []
+            for i in range(1, len(kpoints)):
+                subpath_distances.append(np.linalg.norm(kpoints[i - 1] - kpoints[i]))
+            distances.append(np.array(subpath_distances))
 
         # Obtain total path length
 
@@ -193,21 +200,15 @@ class BrillouinZone():
 
         return interpolating_points
 
-    def inter_distances(self, kpoints):
+    def get_number_interpolating_points(self):
         """
-        Given list of k-points in cartesian coordinates, obtain the distances between them
+        Obtain number of interpolating k-points as given by interpolating points
         """
-        kpoints = np.array(kpoints)
-        distances = []
-
-        for nk in range(1, len(kpoints)):
-            distances.append(np.linalg.norm(kpoints[nk - 1] - kpoints[nk]))
-
-        return np.array(distances)
+        return sum([i for subipoints in self.interpolating_points for i in subipoints])
 
     def get_path_cartesian(self):
         """
-        Express given path in cartesian coordinates.
+        Express path in cartesian coordinates.
         """
         # Transform labels and k-points to cartesian coordinates
 
@@ -229,9 +230,9 @@ class BrillouinZone():
 
     def get_path_reduced(self):
         """
-        Express given path in reduced coordinates.
+        Express path in reduced coordinates.
         """
-        # Transform labels and k-points to cartesian coordinates
+        # Transform labels and k-points to reduced coordinates
 
         path_red = []
         
@@ -263,12 +264,6 @@ class BrillouinZone():
                     labels.append(element[1])
 
         return labels
-
-    def get_number_interpolating_points(self):
-        """
-        Obtain number of interpolating k-points as given by interpolating points
-        """
-        return sum([i for subipoints in self.interpolating_points for i in subipoints])
 
     def get_intervals(self):
         """
