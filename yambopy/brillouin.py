@@ -1,43 +1,48 @@
 from yambopy import *
 
-class CUB():
-    def __init__(self):
-        self.name = 'Cubic'
-        self.required_params = ['a']
+class LAT():
+    def check_parameters(self, parameters):
+        """
+        Check required lattice parameters.
+        """
+        for p in self.required_parameters:
+            try: parameters[p]
+            except KeyError:
+                print(self.name, 'lattice needs parameter:', p)
+                raise
  
-        self.symmetry_points = {
-            'Gamma': [0.0, 0.0, 0.0],
-            'M': [1.0 / 2.0, 1.0 / 2.0, 0.0],
-            'R': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-            'X': [0.0, 1.0 / 2.0, 0.0]
-        }
-
-        self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'R', 'X'], ['M', 'R']]
-   
+class CUB(LAT):
+    name = 'Cubic'
+    required_parameters = ['a']
+    symmetry_points = {
+        'Gamma': [0.0, 0.0, 0.0],
+        'M': [1.0 / 2.0, 1.0 / 2.0, 0.0],
+        'R': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
+        'X': [0.0, 1.0 / 2.0, 0.0]
+    }
+    default_path = [['Gamma', 'X', 'M', 'Gamma', 'R', 'X'], ['M', 'R']]
+ 
     def set_parameters(self, parameters):
+        self.check_parameters(parameters)
         a = parameters['a']
-
         self.lattice = a * np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
-class FCC():
-    def __init__(self):
-        self.name = 'Face-centered cubic'
-        self.required_params = ['a']
- 
-        self.symmetry_points = {
-            'Gamma': [0.0, 0.0, 0.0],
-            'K': [3.0 / 8.0, 3.0 / 8.0, 3.0 / 4.0],
-            'L': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-            'U': [5.0 / 8.0, 1.0 / 4.0, 5.0 / 8.0],
-            'W': [1.0 / 2.0, 1.0 / 4.0, 3.0 / 4.0],
-            'X': [1.0 / 2.0, 0.0, 1.0 / 2.0]
-        }
-
-        self.default_path = [['Gamma', 'X', 'W', 'K', 'Gamma', 'L', 'U', 'W', 'L', 'K'], ['U', 'X']]
+class FCC(LAT):
+    name = 'Face-centered cubic'
+    required_parameters = ['a']
+    symmetry_points = {
+        'Gamma': [0.0, 0.0, 0.0],
+        'K': [3.0 / 8.0, 3.0 / 8.0, 3.0 / 4.0],
+        'L': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
+        'U': [5.0 / 8.0, 1.0 / 4.0, 5.0 / 8.0],
+        'W': [1.0 / 2.0, 1.0 / 4.0, 3.0 / 4.0],
+        'X': [1.0 / 2.0, 0.0, 1.0 / 2.0]
+    }
+    default_path = [['Gamma', 'X', 'W', 'K', 'Gamma', 'L', 'U', 'W', 'L', 'K'], ['U', 'X']]
    
     def set_parameters(self, parameters):
+        self.check_parameters(parameters)
         a = parameters['a']
-
         self.lattice = (a / 2.0) * np.array([[0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 0.0]])
         
 class BrillouinZone():
@@ -56,16 +61,8 @@ class BrillouinZone():
         elif code == 'FCC':
             self.bz = FCC()
         else:
-            raise ValueError('Wrong lattice type: {}'.format(code))
-
-        # Check required lattice parameters
-
-        for p in self.bz.required_params:
-            try: parameters[p]
-            except KeyError:
-                print(self.bz.name, 'lattice needs parameter:', p)
-                raise
-        
+            raise ValueError(f"Wrong lattice type: {code}")
+       
         # Set lattice parameters
 
         self.bz.set_parameters(parameters)
