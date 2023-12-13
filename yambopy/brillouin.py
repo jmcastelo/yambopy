@@ -1,16 +1,16 @@
 from yambopy import *
 import copy
+from math import sqrt, cos, sin, tan
 
 class LAT():
-    def __new__(cls, required_parameters, parameters = {}):
+    def __new__(cls, parameters = {}):
         self = super().__new__(cls)
         
         # Check and set required lattice parameters.
-        
-        for p in required_parameters:
+        for p in self.required_parameters:
             try: parameters[p]
             except KeyError:
-                print(f"Lattice needs parameter: {p}")
+                print(f"{self.name} lattice needs parameter: {p}")
                 raise
 
         self.a = parameters.get('a', None)
@@ -19,6 +19,11 @@ class LAT():
         self.alpha = parameters.get('alpha', None)
         self.beta = parameters.get('beta', None)
         self.gamma = parameters.get('gamma', None)
+
+        for param, value in parameters.items():
+            if any(param == p for p in ['a', 'b', 'c']):
+                if value <= 0:
+                    raise ValueError(f"{param} parameter must be positive.")
 
         return self
 
@@ -44,255 +49,539 @@ class LAT():
         print(f"Default path: {self.default_path}")
 
 class CUB(LAT):
+
     name = 'Cubic'
     
+    required_parameters = ['a']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a']
-        self = super().__new__(cls, required_parameters, parameters) 
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters) 
 
         self.variation = 'CUB'
+        
         self.lattice = self.a * np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0]
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1]
         ])
+        
         self.symmetry_points = {
-            'Gamma': [0.0, 0.0, 0.0],
-            'M': [1.0 / 2.0, 1.0 / 2.0, 0.0],
-            'R': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-            'X': [0.0, 1.0 / 2.0, 0.0]
+            'Gamma': [0, 0, 0],
+            'M': [1/2, 1/2, 0],
+            'R': [1/2, 1/2, 1/2],
+            'X': [0, 1/2, 0]
         }
+        
         self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'R', 'X'], ['M', 'R']]
 
         return self
 
 class FCC(LAT):
+    
     name = 'Face-centered cubic'
     
+    required_parameters = ['a']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
         self.variation = 'FCC'
-        self.lattice = (self.a / 2.0) * np.array([
-            [0.0, 1.0, 1.0],
-            [1.0, 0.0, 1.0],
-            [1.0, 1.0, 0.0]
+        
+        self.lattice = (self.a / 2) * np.array([
+            [0, 1, 1],
+            [1, 0, 1],
+            [1, 1, 0]
         ])
+        
         self.symmetry_points = {
-            'Gamma': [0.0, 0.0, 0.0],
-            'K': [3.0 / 8.0, 3.0 / 8.0, 3.0 / 4.0],
-            'L': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-            'U': [5.0 / 8.0, 1.0 / 4.0, 5.0 / 8.0],
-            'W': [1.0 / 2.0, 1.0 / 4.0, 3.0 / 4.0],
-            'X': [1.0 / 2.0, 0.0, 1.0 / 2.0]
+            'Gamma': [0, 0, 0],
+            'K': [3/8, 3/8, 3/4],
+            'L': [1/2, 1/2, 1/2],
+            'U': [5/8, 1/4, 5/8],
+            'W': [1/2, 1/4, 3/4],
+            'X': [1/2, 0, 1/2]
         }
+        
         self.default_path = [['Gamma', 'X', 'W', 'K', 'Gamma', 'L', 'U', 'W', 'L', 'K'], ['U', 'X']]
     
         return self
 
 class BCC(LAT):
+    
     name = 'Body-centered cubic'
     
+    required_parameters = ['a']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
         self.variation = 'BCC'
+        
         self.lattice = (self.a / 2.0) * np.array([
-            [-1.0, 1.0, 1.0],
-            [1.0, -1.0, 1.0],
-            [1.0, 1.0, -1.0]
+            [-1, 1, 1],
+            [1, -1, 1],
+            [1, 1, -1]
         ])
+        
         self.symmetry_points = {
-            'Gamma': [0.0, 0.0, 0.0],
-            'H': [1.0 / 2.0, -1.0 / 2.0, 1.0 / 2.0],
-            'P': [1.0 / 4.0, 1.0 / 4.0, 1.0 / 4.0],
-            'N': [0.0, 0.0, 1.0 / 2.0]
+            'Gamma': [0, 0, 0],
+            'H': [1/2, -1/2, 1/2],
+            'P': [1/4, 1/4, 1/4],
+            'N': [0, 0, 1/2]
         }
+        
         self.default_path = [['Gamma', 'H', 'N', 'Gamma', 'P', 'H'], ['P', 'N']]
 
         return self
 
 class TET(LAT):
+    
     name = 'Tetragonal'
     
+    required_parameters = ['a', 'c']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a', 'c']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
         if self.a != self.c:
+
             self.variation = 'TET'
+
             self.lattice = np.array([
-                [self.a, 0.0, 0.0],
-                [0.0, self.a, 0.0],
-                [0.0, 0.0, self.c]
+                [self.a, 0, 0],
+                [0, self.a, 0],
+                [0, 0, self.c]
             ])
+        
             self.symmetry_points = {
-                'Gamma': [0.0, 0.0, 0.0],
-                'A': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-                'M': [1.0 / 2.0, 1.0 / 2.0, 0.0],
-                'R': [0.0, 1.0 / 2.0, 1.0 / 2.0],
-                'X': [0.0, 1.0 / 2.0, 0.0],
-                'Z': [0.0, 0.0, 1.0 / 2.0]
+                'Gamma': [0, 0, 0],
+                'A': [1/2, 1/2, 1/2],
+                'M': [1/2, 1/2, 0],
+                'R': [0, 1/2, 1/2],
+                'X': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
             }
+        
             self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'Z', 'R', 'A', 'Z'], ['X', 'R'], ['M', 'A']]
+        
             return self
+
         else:
             print('TET -> CUB')
             return CUB({'a': self.a})
 
+
 class BCT(LAT):
+    
     name = 'Body-centered tetragonal'
     
+    required_parameters = ['a', 'c']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a', 'c']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
         self.lattice = np.array([
-            [-self.a / 2.0, self.a / 2.0, self.c / 2.0],
-            [self.a / 2.0, -self.a / 2.0, self.c / 2.0],
-            [self.a / 2.0, self.a / 2.0, -self.c / 2.0]
+            [-self.a / 2, self.a / 2, self.c / 2],
+            [self.a / 2, -self.a / 2, self.c / 2],
+            [self.a / 2, self.a / 2, -self.c / 2]
         ])
 
         if self.c < self.a:
+
             self.variation = 'BCT1'
-            eta = (1.0 + pow(self.c, 2) / pow(self.a, 2)) / 4.0
+            
+            eta = (1 + self.c**2 / self.a**2) / 4
+
             self.symmetry_points = {
-                'Gamma': [0.0, 0.0, 0.0],
-                'M': [-1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-                'N': [0.0, 1.0 / 2.0, 0.0],
-                'P': [1.0 / 4.0, 1.0 / 4.0, 1.0 / 4.0],
-                'X': [0.0, 0.0, 1.0 / 2.0],
+                'Gamma': [0, 0, 0],
+                'M': [-1/2, 1/2, 1/2],
+                'N': [0, 1/2, 0],
+                'P': [1/4, 1/4, 1/4],
+                'X': [0, 0, 1/2],
                 'Z': [eta, eta, -eta],
-                'Z1': [-eta, 1.0 - eta, eta]
+                'Z1': [-eta, 1 - eta, eta]
             }
+
             self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'Z', 'P', 'N', 'Z1', 'M'], ['X', 'P']]
+            
             return self
+
         elif self.c > self.a:
+
             self.variation = 'BCT2'
-            eta = (1.0 + pow(self.a, 2) / pow(self.c, 2)) / 4.0
-            zeta = pow(self.a, 2) / (2.0 * pow(self.c, 2))
+
+            eta = (1 + self.a**2 / self.c**2) / 4
+            zeta = self.a**2 / (2 * self.c**2)
+
             self.symmetry_points = {
-                'Gamma': [0.0, 0.0, 0.0],
-                'N': [0.0, 1.0 / 2.0, 0.0],
-                'P': [1.0 / 4.0, 1.0 / 4.0, 1.0 / 4.0],
+                'Gamma': [0, 0, 0],
+                'N': [0, 1/2, 0],
+                'P': [1/4, 1/4, 1/4],
                 'Sigma': [-eta, eta, eta],
-                'Sigma1': [eta, 1.0 - eta, -eta],
-                'X': [0.0, 0.0, 1.0 / 2.0],
-                'Y': [-zeta, zeta, 1.0 / 2.0],
-                'Y1': [1.0 / 2.0, 1.0 / 2.0, -zeta],
-                'Z': [1.0 / 2.0, 1.0 / 2.0, -1.0 / 2.0]
+                'Sigma1': [eta, 1 - eta, -eta],
+                'X': [0, 0, 1/2],
+                'Y': [-zeta, zeta, 1/2],
+                'Y1': [1/2, 1/2, -zeta],
+                'Z': [1/2, 1/2, -1/2]
             }
+
             self.default_path = [['Gamma', 'X', 'Y', 'Sigma', 'Gamma', 'Z', 'Sigma1', 'N', 'P', 'Y1', 'Z'], ['X', 'P']]
+
             return self
+
         else:
             print('BCT -> BCC')
             return BCC({'a': self.a})
 
 class ORC(LAT):
+    
     name = 'Orthorhombic'
     
+    required_parameters = ['a', 'b', 'c']
+    
     def __new__(cls, parameters = {}):
-        required_parameters = ['a', 'b', 'c']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
-        params = [self.a, self.b, self.c]
-        params.sort()
-        self.a, self.b, self.c = params
-        
         if self.a != self.b and self.b != self.c and self.c != self.a:
+
+            if not (self.a < self.b and self.b < self.c):
+                raise ValueError("Order of parameters: a < b < c")
+        
             self.variation = 'ORC'
+ 
             self.lattice = np.array([
-                [self.a, 0.0, 0.0],
-                [0.0, self.b, 0.0],
-                [0.0, 0.0, self.c]
+                [self.a, 0, 0],
+                [0, self.b, 0],
+                [0, 0, self.c]
             ])
+
             self.symmetry_points = {
-                'Gamma': [0.0, 0.0, 0.0],
-                'R': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-                'S': [1.0 / 2.0, 1.0 / 2.0, 0.0],
-                'T': [0.0, 1.0 / 2.0, 1.0 / 2.0],
-                'U': [1.0 / 2.0, 0.0, 1.0 / 2.0],
-                'X': [1.0 / 2.0, 0.0, 0.0],
-                'Y': [0.0, 1.0 / 2.0, 0.0],
-                'Z': [0.0, 0.0, 1.0 / 2.0]
+                'Gamma': [0, 0, 0],
+                'R': [1/2, 1/2, 1/2],
+                'S': [1/2, 1/2, 0],
+                'T': [0, 1/2, 1/2],
+                'U': [1/2, 0, 1/2],
+                'X': [1/2, 0, 0],
+                'Y': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
             }
+
             self.default_path = [['Gamma', 'X', 'S', 'Y', 'Gamma', 'Z', 'U', 'R', 'T', 'Z'], ['Y', 'T'], ['U', 'X'], ['S', 'R']]
+
             return self
-        elif self.a == self.b and self.b == self.c:
-            print('ORC -> CUB')
-            return CUB({'a': self.a})
-        elif self.a == self.b:
+
+        elif self.a == self.b and self.b != self.c:
             print('ORC -> TET')
             return TET({'a': self.a, 'c': self.c})
-        else: # self.b == self.c:
+        elif self.a == self.c and self.c != self.b:
             print('ORC -> TET')
-            return TET({'a': self.c, 'c': self.a})
+            return TET({'a': self.a, 'c': self.b})
+        elif self.b == self.c and self.c != self.a:
+            print('ORC -> TET')
+            return TET({'a': self.b, 'c': self.a})
+        else: # self.a == self.b and self.b == self.c
+            print('ORC -> CUB')
+            return CUB({'a': self.a})
 
 class ORCF(LAT):
+    
     name = 'Face-centered orthorhombic'
+    
+    required_parameters = ['a', 'b', 'c']
 
     def __new__(cls, parameters = {}):
-        required_parameters = ['a', 'b', 'c']
-        self = super().__new__(cls, required_parameters, parameters)
-        self.required_parameters = required_parameters
+        self = super().__new__(cls, parameters)
 
-        params = [self.a, self.b, self.c]
-        params.sort()
-        self.a, self.b, self.c = params
-    
         if self.a != self.b and self.b != self.c and self.c != self.a:
+
+            if not (self.a < self.b and self.b < self.c):
+                raise ValueError("Order of parameters: a < b < c")
+
             self.lattice = np.array([
-                [0.0, self.b / 2.0, self.c / 2.0],
-                [self.a / 2.0, 0.0, self.c / 2.0],
-                [self.a / 2.0, self.b / 2.0, 0.0]
+                [0, self.b / 2, self.c / 2],
+                [self.a / 2, 0, self.c / 2],
+                [self.a / 2, self.b / 2, 0]
             ])
-            if 1.0 / pow(self.a, 2) > 1.0 / pow(self.b, 2) + 1.0 / pow(self.c, 2):
+
+            expression = 1 / self.a**2 - 1 / self.b**2 - 1 / self.c**2
+
+            if expression > 0:
+
                 self.variation = 'ORCF1'
                 self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['T', 'X1'], ['X', 'A', 'Z'], ['L', 'Gamma']]
-            elif 1.0 / pow(self.a, 2) < 1.0 / pow(self.b, 2) + 1.0 / pow(self.c, 2):
+
+            elif expression < 0:
+
                 self.variation = 'ORCF2'
-                eta = (1.0 + pow(self.a, 2) / pow(self.b, 2) - pow(self.a, 2) / pow(self.c, 2)) / 4.0
-                phi = (1.0 + pow(self.c, 2) / pow(self.b, 2) - pow(self.c, 2) / pow(self.a, 2)) / 4.0
-                delta = (1.0 + pow(self.b, 2) / pow(self.a, 2) - pow(self.b, 2) / pow(self.c, 2)) / 4.0
+
+                eta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+                phi = (1 + self.c**2 / self.b**2 - self.c**2 / self.a**2) / 4
+                delta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4.
+                
                 self.symmetry_points = {
-                    'Gamma': [0.0, 0.0, 0.0],
-                    'C': [1.0 / 2.0, 1.0 / 2.0 - eta, 1.0 - eta],
-                    'C1': [1.0 / 2.0, 1.0 / 2.0 + eta, eta],
-                    'D': [1.0 / 2.0 - delta, 1.0 / 2.0, 1.0 - delta],
-                    'D1': [1.0 / 2.0 + delta, 1.0 / 2.0, delta],
-                    'L': [ 1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-                    'H': [ 1.0 - phi, 1.0 / 2.0 - phi, 1.0 / 2.0],
-                    'H1': [phi, 1.0 / 2.0 + phi, 1.0 / 2.0],
-                    'X': [0.0, 1.0 / 2.0, 1.0 / 2.0],
-                    'Y': [1.0 / 2.0, 0.0, 1.0 / 2.0],
-                    'Z': [1.0 / 2.0, 1.0 / 2.0, 0.0]
+                    'Gamma': [0, 0, 0],
+                    'C': [1/2, 1/2 - eta, 1 - eta],
+                    'C1': [1/2, 1/2 + eta, eta],
+                    'D': [1/2 - delta, 1/2, 1 - delta],
+                    'D1': [1/2 + delta, 1/2, delta],
+                    'L': [1/2, 1/2, 1/2],
+                    'H': [1 - phi, 1/2 - phi, 1/2],
+                    'H1': [phi, 1/2 + phi, 1/2],
+                    'X': [0, 1/2, 1/2],
+                    'Y': [1/2, 0, 1/2],
+                    'Z': [1/2, 1/2, 0]
                 }
+
                 self.default_path = [['Gamma', 'Y', 'C', 'D', 'X', 'Gamma', 'Z', 'D1', 'H', 'C'], ['C1', 'Z'], ['X', 'H1'], ['H', 'Y'], ['L', 'Gamma']]
-            else:
+            else: # expression == 0
+
                 self.variation = 'ORCF3'
                 self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
             if self.variation == 'ORCF1' or self.variation == 'ORCF3':
-                zeta = (1.0 + pow(self.a, 2) / pow(self.b, 2) - pow(self.a, 2) / pow(self.c, 2)) / 4.0
-                eta = (1.0 + pow(self.a, 2) / pow(self.b, 2) + pow(self.a, 2) / pow(self.c, 2)) / 4.0
+
+                zeta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+                eta = (1 + self.a**2 / self.b**2 + self.a**2 / self.c**2) / 4
+                
                 self.symmetry_points = {
-                    'Gamma': [0.0, 0.0, 0.0],
-                    'A': [1.0 / 2.0, 1.0 / 2.0 + zeta, zeta],
-                    'A1': [1.0 / 2.0, 1.0 / 2.0 - zeta, 1.0 - zeta],
-                    'L': [1.0 / 2.0, 1.0 / 2.0, 1.0 / 2.0],
-                    'T': [1.0, 1.0 / 2.0, 1.0 / 2.0],
-                    'X': [0.0, eta, eta],
-                    'X1': [1.0, 1.0 - eta, 1.0 - eta],
-                    'Y': [1.0 / 2.0, 0.0, 1.0 / 2.0],
-                    'Z': [1.0 / 2.0, 1.0 / 2.0, 0.0]
+                    'Gamma': [0, 0, 0],
+                    'A': [1/2, 1/2 + zeta, zeta],
+                    'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                    'L': [1/2, 1/2, 1/2],
+                    'T': [1, 1/2, 1/2],
+                    'X': [0, eta, eta],
+                    'X1': [1, 1 - eta, 1 - eta],
+                    'Y': [1/2, 0, 1/2],
+                    'Z': [1/2, 1/2, 0]
                 }
+
+            return self
+
+        elif self.a == self.b and self.b != self.c:
+            print('ORCF -> BCT')
+            return BCT({'a': self.a, 'c': self.c})
+        elif self.a == self.c and self.c != self.b:
+            print('ORCF -> BCT')
+            return BCT({'a': self.a, 'c': self.b})
+        elif self.b == self.c and self.c != self.a:
+            print('ORCF -> BCT')
+            return BCT({'a': self.b, 'c': self.a})
+        else: # self.a == self.b and self.b == self.c
+            print('ORCF -> FCC')
+            return FCC({'a': self.a})
+ 
+class ORCI(LAT):
+    
+    name = 'Body-centered orthorhombic'
+    
+    required_parameters = ['a', 'b', 'c']
+
+    def __new__(cls, parameters = {}):
+        self = super().__new__(cls, parameters)
+
+        if self.a != self.b and self.b != self.c and self.c != self.a:
+
+            if not (self.a < self.b and self.b < self.c):
+                raise ValueError("Order of parameters: a < b < c")
+
+            self.lattice = np.array([
+                [-self.a / 2, self.b / 2, self.c / 2],
+                [self.a / 2, -self.b / 2, self.c / 2],
+                [self.a / 2, self.b / 2, -self.c / 2]
+            ])
+
+            self.variation = 'ORCI'
+
+            zeta = (1 + self.a**2 / self.c**2) / 4
+            eta = (1 + self.b**2 / self.c**2) / 4
+            delta = (self.b**2 - self.a**2) / (4 * self.c**2)
+            mu = (self.a**2 + self.b**2) / (4 * self.c**2)
+
+            self.symmetry_points = {
+                'Gamma': [0, 0, 0],
+                'L': [-mu, mu, 1/2 - delta],
+                'L1': [mu, -mu, 1/2 + delta],
+                'L2': [1/2 - delta, 1/2 + delta, -mu],
+                'R': [0, 1/2, 0],
+                'S': [1/2, 0, 0],
+                'T': [0, 0, 1/2],
+                'W': [1/4, 1/4, 1/4],
+                'X': [-zeta, zeta, zeta],
+                'X1': [zeta, 1 - zeta, -zeta],
+                'Y': [eta, -eta, eta],
+                'Y1': [1 - eta, eta, -eta],
+                'Z': [1/2, 1/2, -1/2]
+            }
+
+            self.default_path = [['Gamma', 'X', 'L', 'T', 'W', 'R', 'X1', 'Z', 'Gamma','Y', 'S', 'W'], ['L1', 'Y'], ['Y1', 'Z']]
+
+            return self
+
+        elif self.a == self.b and self.b != self.c:
+            print('ORCI -> BCT')
+            return BCT({'a': self.a, 'c': self.c})
+        elif self.a == self.c and self.c != self.b:
+            print('ORCI -> BCT')
+            return BCT({'a': self.a, 'c': self.b})
+        elif self.b == self.c and self.c != self.a:
+            print('ORCI -> BCT')
+            return BCT({'a': self.b, 'c': self.a})
+        else: # self.a == self.b and self.b == self.c
+            print('ORCI -> BCC')
+            return BCC({'a': self.a})
+
+class ORCC(LAT):
+    
+    name = 'Base-centered orthorhombic'
+    
+    required_parameters = ['a', 'b', 'c']
+
+    def __new__(cls, parameters = {}):
+        self = super().__new__(cls, parameters)
+
+        if self.a != self.b:
+
+            if self.a > self.b:
+                raise ValueError("Order of parameters: a < b")
+
+            self.lattice = np.array([
+                [self.a / 2, -self.b / 2, 0],
+                [self.a / 2, self.b / 2, 0],
+                [0, 0, self.c]
+            ])
+
+            self.variation = 'ORCC'
+
+            zeta = (1 + self.a**2 / self.b**2) / 4
+
+            self.symmetry_points = {
+                'Gamma': [0, 0, 0],
+                'A': [zeta, zeta, 1/2],
+                'A1': [-zeta, 1 - zeta, 1/2],
+                'R': [0, 1/2, 1/2],
+                'S': [0, 1/2, 0],
+                'T': [-1/2, 1/2, 1/2],
+                'X': [zeta, zeta, 0],
+                'X1': [-zeta, 1 - zeta, 0],
+                'Y': [-1/2, 1/2, 0],
+                'Z': [0, 0, 1/2]
+            }
+
+            self.default_path = [['Gamma', 'X', 'S', 'R', 'A', 'Z', 'Gamma', 'Y', 'X1', 'A1', 'T', 'Y'], ['Z', 'T']]
+
+            return self
+
+        elif self.a == self.b and self.b == sqrt(2) * self.c:
+            print('ORCC -> CUB')
+            return CUB({'a': self.a})
+        else:
+            print('ORCC -> TET')
+            return TET({'a': self.a, 'c': self.c})
+
+class HEX(LAT):
+
+    name = 'Hexagonal'
+
+    required_parameters = ['a', 'c']
+
+    def __new__(cls, parameters = {}):
+        self = super().__new__(cls, parameters)
+
+        self.lattice = np.array([
+            [self.a / 2, -self.a * sqrt(3), 0],
+            [self.a / 2, self.a * sqrt(3), 0],
+            [0, 0, self.c]
+        ])
+
+        self.variation = 'HEX'
+
+        self.symmetry_points = {
+            'Gamma': [0, 0, 0],
+            'A': [0, 0, 1/2],
+            'H': [1/3, 1/3, 1/2],
+            'K': [1/3, 1/3, 0],
+            'L': [1/2, 0, 1/2],
+            'M': [1/2, 0, 0]
+        }
+
+        self.default_path = [['Gamma', 'M', 'K', 'Gamma', 'A', 'L', 'H', 'A'], ['L', 'M'], ['K', 'H']]
+
+        return self
+
+class RHL(LAT):
+
+    name = 'Rhombohedral'
+
+    required_parameters = ['a', 'alpha']
+
+    def __new__(cls, parameters = {}):
+        self = super().__new__(cls, parameters)
+        
+        alpha = np.radians(self.alpha)
+
+        self.lattice = np.array([
+            [self.a * cos(alpha / 2), -self.a * sin(alpha / 2), 0],
+            [self.a * cos(alpha / 2), self.a * sin(alpha / 2), 0],
+            [self.a * cos(alpha) / cos(alpha / 2), 0, self.a * sqrt(1 - cos(alpha)**2 / cos(alpha / 2)**2)]
+        ])
+
+        if self.alpha == 60:
+            print('RHL -> FCC')
+            return FCC({'a': self.a})
+        elif cos(alpha) == -1/3:
+            print('RHL -> BCC')
+            return BCC({'a': self.a})
+        elif self.alpha < 90:
+
+            self.variation = 'RHL1'
+
+            eta = (1 + 4 * cos(alpha)) / (2 + 4 * cos(alpha))
+            nu = 3/4 - eta / 2
+
+            self.symmetry_points = {
+                'Gamma': [0, 0, 0],
+                'B': [eta, 1/2, 1 - eta],
+                'B1': [1/2, 1 - eta, eta - 1],
+                'F': [1/2, 1/2, 0],
+                'L': [1/2, 0, 0],
+                'L1': [0, 0, -1/2],
+                'P': [eta, nu, nu],
+                'P1': [1 - nu, 1 - nu, 1 - eta],
+                'P2': [nu, nu, eta - 1],
+                'Q': [1 - nu, nu, 0],
+                'X': [nu, 0, -nu],
+                'Z': [1/2, 1/2, 1/2]
+            }
+
+            self.default_path = [['Gamma', 'L', 'B1'], ['B', 'Z', 'Gamma', 'X'], ['Q', 'F', 'P1', 'Z'], ['L', 'P']]
+
+            return self
+
+        elif self.alpha > 90:
+
+            self.variation = 'RHL2'
+
+            eta = 1 / (2 * tan(alpha / 2)**2)
+            nu = 3/4 - eta / 2
+
+            self.symmetry_points = {
+                'Gamma': [0, 0, 0],
+                'F': [1/2, -1/2, 0],
+                'L': [1/2, 0, 0],
+                'P': [1 - nu, -nu, 1 - nu],
+                'P1': [nu, nu - 1, nu - 1],
+                'Q': [eta, eta, eta],
+                'Q1': [1 - eta, -eta, -eta],
+                'Z': [1/2, -1/2, 1/2]
+            }
+
+            self.default_path = [['Gamma', 'P', 'Z', 'Q', 'Gamma', 'F', 'P1', 'Q1', 'L', 'Z']]
+
+            return self
+
+        else: # self.alpha == 90:
+            print('RHL -> CUB')
+            return CUB({'a': self.a})
  
 class BrillouinZone():
     """
@@ -317,6 +606,16 @@ class BrillouinZone():
             self.bz = BCT(parameters)
         elif code == 'ORC':
             self.bz = ORC(parameters)
+        elif code == 'ORCF':
+            self.bz = ORCF(parameters)
+        elif code == 'ORCI':
+            self.bz = ORCI(parameters)
+        elif code == 'ORCC':
+            self.bz = ORCC(parameters)
+        elif code == 'HEX':
+            self.bz = HEX(parameters)
+        elif code == 'RHL':
+            self.bz = RHL(parameters)
         else:
             raise ValueError(f"Wrong lattice type: {code}")
 
@@ -335,8 +634,9 @@ class BrillouinZone():
 
     def set_path(self, path = None, ipoints = 100, in_coord_type = 'red'):
         """
-        Sets the path, given list of subpaths. Each subpath represents a list of k-points,
-        given by labels 'X' or coordinates and label [[Kx, Ky, Kz], 'X']
+        Sets the path, given list of subpaths and number of interpolating points. Each subpath represents a list
+        of k-points, given by labels 'X' or coordinates and label [[Kx, Ky, Kz], 'X'], expressed in cartesian or
+        reduced coordinates.
         """
         # Check input coordinates type
 
@@ -377,8 +677,7 @@ class BrillouinZone():
 
     def get_interpolated_path(self, out_coord_type = 'car', qe_out = False):
         """
-        Constructs path given high symmetry points labels of selected Brillouin zone, with given number of
-        interpolated points, expressed in cartesian or reduced coordinates. Optionally, output in QE format.
+        Interpolates path and expresses it in cartesian or reduced coordinates. Optionally, output in QE format.
         """
         # Check output coordinates type
 
