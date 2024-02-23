@@ -179,7 +179,7 @@ class PwIn(object):
         """Set the structure using the typical QE input variables"""
         if ibrav == 0 and cell_parameters is None:
             raise ValueError('ibrav = 0 implies that the cell_parameters variable is set')
-        if cell_parameters: self.cell_parameters = cell_parameters
+        if cell_parameters is not None: self.cell_parameters = cell_parameters
         if ibrav is not None: self.set_ibrav(ibrav)
         if celldm1 is not None: self.system['celldm(1)'] = celldm1
         if celldm2 is not None: self.system['celldm(2)'] = celldm2
@@ -271,7 +271,7 @@ class PwIn(object):
 
 
     def set_atypes(self,atypes):
-        """"
+        """
         Set the atom types.
 
         Example:

@@ -1,4 +1,5 @@
 from yambopy import *
+from qepy.lattice import Path
 import copy
 from math import sqrt, cos, sin, tan
 
@@ -117,12 +118,12 @@ class BCC(LAT):
 
         self.variation = 'BCC'
         
-        self.lattice = (self.a / 2.0) * np.array([
+        self.lattice = (self.a / 2) * np.array([
             [-1, 1, 1],
             [1, -1, 1],
             [1, 1, -1]
         ])
-        
+
         self.symmetry_points = {
             'Gamma': [0, 0, 0],
             'H': [1/2, -1/2, 1/2],
@@ -622,6 +623,7 @@ class BrillouinZone():
         # Obtain reciprocal lattice vectors
         
         self.rlattice = rec_lat(self.bz.lattice)
+        self.lattice = self.bz.lattice
 
         # Obtain symmetry points in cartesian coordinates
 
@@ -632,7 +634,11 @@ class BrillouinZone():
 
         self.set_path()
 
-    def set_path(self, path = None, ipoints = 100, in_coord_type = 'red'):
+    def info(self):
+        self.bz.info()
+        print(f"Reciprocal lattice:\n{self.rlattice}")
+
+    def set_path(self, path = None, ipoints = 0, in_coord_type = 'red'):
         """
         Sets the path, given list of subpaths and number of interpolating points. Each subpath represents a list
         of k-points, given by labels 'X' or coordinates and label [[Kx, Ky, Kz], 'X'], expressed in cartesian or
@@ -799,18 +805,30 @@ class BrillouinZone():
 
         return path_red
 
-    def get_path_labels(self):
+    def get_path_labels(self, joined = False):
         """
         Obtain list of labels of k-points on path 
         """
         labels = []
 
-        for subpath in self.path:
+        join_labels = False
+
+        for i, subpath in enumerate(self.path):
+            if joined and i > 0:
+                last_label = labels.pop()
+                join_labels = True
+
             for element in subpath:
                 if isinstance(element, str):
-                    labels.append(element)
+                    label = element
                 elif isinstance(element, list):
-                    labels.append(element[1])
+                    label = element[1]
+
+                if joined and join_labels is True:
+                    label = last_label + '-' + label
+                    join_labels = False
+
+                labels.append(label)
 
         return labels
 
@@ -829,20 +847,20 @@ class BrillouinZone():
         return intervals
 
     def set_legacy_path(self):
-        """"
-        Set path in reduced coordinates, labels and intervals
+        """
+        Set path in cartesian coordinates, labels and intervals
         """
         # Obtain path in reduced coordinates
 
-        path_red = self.get_path_reduced()
+        path_car = self.get_path_cartesian()
         
         # Flatten path
 
-        path_red = [kpoint for subpath in path_red for kpoint in subpath]
+        path_car = [kpoint for subpath in path_car for kpoint in subpath]
 
         # Legacy data structures
 
-        self.kpoints = np.array(path_red)
+        self.kpoints = np.array(path_car)
         self.klabels = self.get_path_labels()
         self.intervals = self.get_intervals()
 
@@ -867,10 +885,16 @@ class BrillouinZone():
         }
         return d
 
+    @classmethod
+    def from_dict(cls, d):
+        klist = zip(d['kpoints'], d['klabels'])
+        return Path(klist, d['intervals'])
+
+    """
     def distances(self):
-        """
+        '''
         LEGACY: Obtain list of distances between first and consecutive k-points on path.
-        """
+        '''
         distance = 0
         distances = []
         kpoint1 = self.kpoints[0]
@@ -881,19 +905,51 @@ class BrillouinZone():
             kpoint1 = kpoint2
     
         return distances
+    """
 
-    def set_xticks(self, ax):
+    def distances(self, path):
+        distance = 0
+        subpath_distances = [0]
+        distances = []
+
+        for subpath in path:
+
+            kpoints = np.array(subpath)
+
+            for i in range(1, len(kpoints)):
+                distance += np.linalg.norm(kpoints[i - 1] - kpoints[i])
+                subpath_distances.append(distance)
+
+            distances.append(subpath_distances)
+            subpath_distances = [distance]
+
+        return distances
+
+    def get_label_distances(self, joined = False):
+        distances = []
+
+        imax = len(self.path) - 1
+
+        for i, subpath_distances in enumerate(self.distances(self.path_car)):
+            if joined and i < imax:
+                subpath_distances.pop()
+            for distance in subpath_distances:
+                distances.append(distance)
+
+        return distances
+
+    def set_xticks(self, ax, subpath_index):
         """
         LEGACY: Set x-axis ticks and labels
         """
-        ax.set_xticks(self.distances())
-        ax.set_xticklabels(self.klabels)
+        ax.set_xticks(ticks = self.distances(self.path_car), labels = self.klabels)
+        #ax.set_xticklabels(self.klabels)
 
     def __iter__(self):
         """
         LEGACY: Iterator???
         """
-        return iter(zip(self.kpoints, self.klabels, self.distances()))
+        return iter(zip(self.kpoints, self.klabels, self.distances(self.path_car)))
 
     def get_klist(self):
         """
@@ -914,6 +970,84 @@ class BrillouinZone():
         indexes.append([index, self.klabels[-1]])
 
         return indexes
+
+    def get_collinear_kpoints(self, mesh, mesh_indexes, debug = False):
+        """
+        Obtain a list of indexes and kpoints that belong to a regular mesh and are collinear with the path
+        """
+
+        # Find the points along the path
+
+        collinear_kpoints = []
+        indexes = []
+        distances = []
+
+        path_length = 0
+
+        for subpath in self.path_car:
+
+            collinear_kpoints_subpath = []
+            distances_subpath = []
+
+            for k in range(len(subpath) - 1):
+
+                # Store here all the points that belong to the mesh along the path
+                # key:   has the coordinates of the kpoint rounded to 4 decimal places
+                # value: [index of the kpoint,
+                #         distance to the starting kpoint,
+                #         the kpoint cordinate]
+
+                kpoints_in_path = {}
+
+                start_kpt = subpath[k]   # Start point of the segment
+                end_kpt   = subpath[k + 1] # End point of the segment
+
+                segment_lenght = np.linalg.norm(start_kpt - end_kpt)
+
+                # Generate repetitions of the brillouin zone
+
+                for x, y, z in product(list(range(-1, 2)), list(range(-1, 2)), list(range(-1, 2))):
+
+                    # Shift the brillouin zone
+
+                    shift = red_car([np.array([x, y, z])], self.rlattice)[0]
+
+                    # Iterate over all the kpoints
+
+                    for index, kpoint in zip(mesh_indexes, mesh):
+
+                        kpt_shift = kpoint + shift # Shift the kpoint
+
+                        # If the point is collinear we add it
+
+                        if isbetween(start_kpt, end_kpt, kpt_shift):
+                            key = tuple([round(kpt, 4) for kpt in kpt_shift])
+                            value = [index, np.linalg.norm(start_kpt - kpt_shift), kpt_shift]
+                            kpoints_in_path[key] = value
+
+                # Sort the points acoording to distance to the start of the segment
+
+                kpoints_in_path = sorted(list(kpoints_in_path.values()), key = lambda i: i[1])
+
+                # For all the kpoints in the segment
+
+                for index, distance, kpoint in kpoints_in_path:
+                    collinear_kpoints_subpath.append(kpoint)
+                    indexes.append(index)
+                    distances_subpath.append(distance + path_length)
+
+                    if len(indexes) > 1 and indexes[-1] == indexes[-2]:
+                        collinear_kpoints_subpath.pop()
+                        indexes.pop()
+                        distances_subpath.pop()
+                    elif debug: print(("%12.8lf "*3)%tuple(kpoint), index)
+
+                path_length += segment_lenght
+
+            collinear_kpoints.append(collinear_kpoints_subpath)
+            distances.append(distances_subpath)
+
+        return collinear_kpoints, indexes, distances
 
     def check_path_structure(self, path):
         """

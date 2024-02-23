@@ -389,7 +389,73 @@ class YamboSaveDB():
         print("%d kpoints expanded to %d"%(len(self.car_kpoints),len(kpoints_full)))
 
         return self.kpoints_full, self.kpoints_indexes, self.symmetry_indexes
+    '''
+    def expand_kpts(self,verbose=0,expand_mode=1,atol=1.e-6):
+        """
+        Take a list of qpoints and symmetry operations and return the full brillouin zone
+        with the corresponding index in the irreducible brillouin zone
 
+        :: expand_mode=0 : k' = S k
+        :: expand_mode=1:  k' = S.T k  [default, consistent with yambo]
+        """
+
+        #check if the kpoints were already exapnded
+        kpoints_indexes  = []
+        kpoints_full     = []
+        symmetry_indexes = []
+
+        # Store original kpoints in iku coordinates
+        #self.ibz_kpoints = self.iku_kpoints
+
+        #kpoints in the full brillouin zone organized per index
+        kpoints_full_i = {}
+
+        if expand_mode==0: sym_car_to_apply = self.sym_car
+        if expand_mode==1:
+            sym_car_to_apply = np.copy(self.sym_car)
+            sym_car_to_apply = np.transpose(self.sym_car, (0, 2, 1))
+
+
+        #expand using symmetries
+        for nk,k in enumerate(self.car_kpoints):
+            #if the index in not in the dicitonary add a list
+            if nk not in kpoints_full_i:
+                kpoints_full_i[nk] = []
+
+            for ns,sym in enumerate(sym_car_to_apply):
+
+                new_k = np.dot(sym,k)
+                #check if the point is inside the bounds
+                k_red = car_red([new_k],self.rlat)[0]
+                k_red[np.abs(k_red) < atol] = 0. # Set to zero values < atol to avoid mistakes
+                k_bz = (k_red+atol)%1
+
+                #if the vector is not in the list of this index add it
+                #if not vec_in_list(k_bz,kpoints_full_i[nk],atol=atol):
+                if not vec_in_list(k_bz,kpoints_full_i[nk]):
+                    kpoints_full_i[nk].append(k_bz)
+                    kpoints_full.append(new_k)
+                    kpoints_indexes.append(nk)
+                    symmetry_indexes.append(ns)
+                    continue
+
+        #calculate the weights of each of the kpoints in the irreducible brillouin zone
+        nkpoints_full = len(kpoints_full)
+        weights = np.zeros([nkpoints_full])
+        for nk in kpoints_full_i:
+            weights[nk] = float(len(kpoints_full_i[nk]))/nkpoints_full
+
+        if verbose: print("%d kpoints expanded to %d"%(len(self.car_kpoints),len(kpoints_full)))
+
+        #set the variables
+        self.weights      = np.array(weights)
+        self.kpoints_full     = np.array(kpoints_full)
+        self.kpoints_indexes  = np.array(kpoints_indexes)
+        self.symmetry_indexes = np.array(symmetry_indexes)
+        #self.iku_kpoints      = [k*self.alat for k in kpoints_full]
+
+        return self.kpoints_full, self.kpoints_indexes, self.symmetry_indexes
+    '''
     def plot_bs_ax(self,ax,path,bandmin=None,bandmax=None,add_indexes=False,**kwargs):
         """
         Plot this bandstructure on Matpltolib ax

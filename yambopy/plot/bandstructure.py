@@ -6,7 +6,8 @@
 import numpy as np
 from yambopy.tools.string import marquee
 from yambopy.plot.plotting import add_fig_kwargs
-from qepy.lattice import Path
+#from qepy.lattice import Path
+from yambopy.brillouin import BrillouinZone
 
 def exagerate_differences(ks_ebandsc,ks_ebandsp,ks_ebandsm,d=0.01,exagerate=5):
     """
@@ -77,11 +78,13 @@ class YambopyBandStructure():
     """
     _colormap = 'rainbow'
 
-    def __init__(self,bands,kpoints,kpath=None,fermie=0,weights=None,spin_proj=None,**kwargs):
+    #def __init__(self,bands,kpoints,kpath=None,fermie=0,weights=None,spin_proj=None,**kwargs):
+    def __init__(self,bands,distances,kpath=None,fermie=0,weights=None,spin_proj=None,**kwargs): # JMCA
         self.bands = np.array(bands)
         self.weights = np.array(weights)     if weights   is not None else None
         self.spin_proj = np.array(spin_proj) if spin_proj is not None else None 
-        self.kpoints = np.array(kpoints)
+        #self.kpoints = np.array(kpoints) # JMCA
+        self.distances = distances
         self.kwargs = kwargs
         self.kpath = kpath
         self.fermie = fermie
@@ -100,7 +103,8 @@ class YambopyBandStructure():
 
     @property
     def xlim(self):
-        if self._xlim is None: return (min(self.distances),max(self.distances))
+        distances = [dist for subpath_distances in self.distances for dist in subpath_distances]
+        if self._xlim is None: return (min(distances),max(distances))
         return self._xlim
 
     @property
@@ -110,8 +114,10 @@ class YambopyBandStructure():
 
     @classmethod
     def from_dict(cls,d):
-        path = Path.from_dict(d['kpath'])
-        instance = cls(d['bands'],d['kpoints'],kpath=path,
+        #path = Path.from_dict(d['kpath'])
+        path = BrillouinZone.from_dict(d['kpath']) # JMCA
+        #instance = cls(d['bands'],d['kpoints'],kpath=path,
+        instance = cls(d['bands'],d['distances'],kpath=path, # JMCA
                        fermie=d['fermie'],weights=d['weights'],**d['kwargs'])
         instance._xlim = d['_xlim']
         instance._ylim = d['_ylim']
@@ -129,7 +135,8 @@ class YambopyBandStructure():
         """
         d = { 'bands': self.bands.tolist(),
               'weights': self.weights.tolist() if self.weights is not None else None,
-              'kpoints': self.kpoints.tolist(),
+              #'kpoints': self.kpoints.tolist(),
+              'distances': self.distances,
               'kwargs': self.kwargs,
               'kpath': self.kpath.as_dict() if self.kpath is not None else None,
               'fermie': self.fermie,
@@ -166,7 +173,7 @@ class YambopyBandStructure():
         if ylim is None: ylim = self.ylim
         ax.set_xlim(xlim[0],xlim[1])
         ax.set_ylim(ylim[0]-self.fermie,ylim[1]-self.fermie)
-
+    ''' JMCA
     @property
     def distances(self):
         if not hasattr(self,"_distances"):
@@ -176,7 +183,7 @@ class YambopyBandStructure():
                 distance += np.linalg.norm(self.kpoints[nk]-self.kpoints[nk-1])
                 self._distances.append(distance)
         return self._distances
-
+    '''
     def as_list(self,bands=None):
         yl = YambopyBandStructureList([self])
         if bands: yl.append(bands)
@@ -209,11 +216,17 @@ class YambopyBandStructure():
         if self.kpath is None:
             ax.xaxis.set_ticks([])
             return 
-        for kpoint, klabel, distance in self.kpath:
+
+        """for kpoint, klabel, distance in self.kpath:
             ax.axvline(distance,c='k',ls='--',lw=0.5)
         ax.axvline(0.0,c='k',ls='-',lw=0.0)
         ax.axvline(distance,c='k',ls='-',lw=0.0)
-        self.kpath.set_xticks(ax)
+        self.kpath.set_xticks(ax)"""
+
+        for distance in self.kpath.get_label_distances(True):
+            ax.axvline(distance, c = 'k', ls = '--', lw = 0.5)
+
+        ax.set_xticks(ticks = self.kpath.get_label_distances(True), labels = self.kpath.get_path_labels(True))
 
     def plot_ax(self,ax,xlim=None,ylim=None,size=1.,ylabel='$\epsilon_{n\mathbf{k}}$ [eV]', alpha_weights=0.5,legend=False,**kwargs):
         """Receive an intance of matplotlib axes and add the plot"""
@@ -232,22 +245,36 @@ class YambopyBandStructure():
         #dot symbol
         # I choose a colormap for spin
         color_map  = plt.get_cmap('seismic')
-        for ib,band in enumerate(self.bands.T):
-            x = self.distances
-            y = band-fermie
-            ax.plot(x,y,c=c_bands,lw=lw_label,label=c_label)
-            # fill between 
-            if self.weights is not None: # and self.spin_proj is not None:
-                dy = self.weights[:,ib]*size
-                #color_spin = self.spin_proj[:,ib] + 0.5 # I renormalize 0 => down; 1 => up
-                ax.fill_between(x,y+dy,y-dy,alpha=alpha_weights,color=c_weights,linewidth=0,label=c_label)
-                #ax.scatter(x,y,s=100,c=color_spin,cmap=color_map,vmin=0.0,vmax=1.0,edgecolors='none')
-            # dot
-            #if self.weights is not None:
-            #    plt.plot(x,y)#,c=c_weights,size=dy,alpha=alpha_weights)
-            #    ax.scatter(x,y,c=c_weights,size=dy,alpha=alpha_weights)
 
-            #kwargs.pop('label',None)
+        imin = 0
+        imax = 0
+
+        for subpath_distances in self.distances:
+            imin = imax
+            imax += len(subpath_distances)
+
+            x = subpath_distances
+
+            for ib, band in enumerate(self.bands.T):
+                #x = self.distances
+                #y = band-fermie
+
+                y = band[imin:imax] - fermie
+
+                ax.plot(x, y, c = c_bands, lw = lw_label, label = c_label)
+
+                # fill between
+                if self.weights is not None: # and self.spin_proj is not None:
+                    dy = self.weights[:,ib]*size
+                    #color_spin = self.spin_proj[:,ib] + 0.5 # I renormalize 0 => down; 1 => up
+                    ax.fill_between(x,y+dy,y-dy,alpha=alpha_weights,color=c_weights,linewidth=0,label=c_label)
+                    #ax.scatter(x,y,s=100,c=color_spin,cmap=color_map,vmin=0.0,vmax=1.0,edgecolors='none')
+                # dot
+                #if self.weights is not None:
+                #    plt.plot(x,y)#,c=c_weights,size=dy,alpha=alpha_weights)
+                #    ax.scatter(x,y,c=c_weights,size=dy,alpha=alpha_weights)
+
+                #kwargs.pop('label',None)
 
         self.set_ax_lim(ax,fermie=fermie,xlim=xlim,ylim=ylim)
         ax.set_ylabel(ylabel)
@@ -315,25 +342,29 @@ class YambopyBandStructure():
         """Add the bands of two systems together"""
         #add some consistency check
         bands = self.bands + y.bands
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie+y.fermie,**self.kwargs)
+        #return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie+y.fermie,**self.kwargs)
+        return YambopyBandStructure(bands,self.distances,kpath=self.kpath,fermie=self.fermie+y.fermie,**self.kwargs) # JMCA
  
     def __sub__(self,y):
         """Subtract the bands of two systems together"""
         #add some consistency check
         bands = self.bands - y.bands
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie-y.fermie,**self.kwargs)
+        #return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie-y.fermie,**self.kwargs)
+        return YambopyBandStructure(bands,self.distances,kpath=self.kpath,fermie=self.fermie-y.fermie,**self.kwargs) # JMCA
 
     def __mul__(self,y):
         """Scale the bands of the system"""
         #add some consistency check
         bands = self.bands*y
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie*y,**self.kwargs)
+        #return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie*y,**self.kwargs)
+        return YambopyBandStructure(bands,self.distances,kpath=self.kpath,fermie=self.fermie*y,**self.kwargs) # JMCA
 
     def __truediv__(self,y):
         """Scale the bands of the system"""
         #add some consistency check
         bands = self.bands/y
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie/y,**self.kwargs)
+        #return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie/y,**self.kwargs)
+        return YambopyBandStructure(bands,self.distances,kpath=self.kpath,fermie=self.fermie/y,**self.kwargs) # JMCA
     
     def __str__(self):
         lines = []; app = lines.append
