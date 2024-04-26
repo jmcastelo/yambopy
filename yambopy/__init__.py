@@ -52,6 +52,12 @@ class yambopyenv():
 from yambopy.tools.jsonencoder import *
 from yambopy.units import *
 
+#lattice-related operations
+from yambopy.lattice import *
+
+#skw interpolator (adapted from abipy version)
+from yambopy.tools.skw import *
+
 #yambo databases
 from yambopy.dbs.savedb import *
 from yambopy.dbs.dipolesdb import *
@@ -75,6 +81,7 @@ from yambopy.io.inputfile import *
 from yambopy.io.outputfile import *
 from yambopy.io.jsonfile import *
 from yambopy.io.iofile import *
+from yambopy.io.xsffile import *
 
 #bse/excitons files
 from yambopy.bse.excitonwf import *
@@ -87,6 +94,10 @@ from yambopy.em1s.em1s_rotate import *
 
 #ndb.QP operations
 from yambopy.quasiparticles.QP_rotate import *
+
+#LetzElPhC interface
+from yambopy.letzelphc_interface.lelphcdb import *
+from yambopy.letzelphc_interface.lelph2y import *
 
 #analyse stuff
 from yambopy.analyse import *
@@ -107,6 +118,7 @@ from yambopy.nl.fft_interp import *
 from yambopy.nl.external_efield import *
 from yambopy.nl.damp_it import *
 from yambopy.nl.harmonic_analysis import *
+from yambopy.nl.hhg_tools import *
 
 #doublegrid files
 from yambopy.double_grid.dg_convergence import *

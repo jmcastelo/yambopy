@@ -1,14 +1,23 @@
-
+#
+# License-Identifier: GPL
+#
+# Copyright (C) 2024 The Yambo Team
+#
+# Authors: HPC, AMS, FP, RR
+#
+# This file is part of the yambopy project
+#
 from yambopy.units import *
 from yambopy.plot.plotting import add_fig_kwargs,BZ_Wigner_Seitz
 from yambopy.plot.bandstructure import *
 from yambopy.lattice import replicate_red_kmesh, calculate_distances, get_path, car_red
 from yambopy.tools.funcs import gaussian, lorentzian
+from yambopy.tools.skw import SkwInterpolator
 from yambopy.dbs.savedb import *
 from yambopy.dbs.latticedb import *
 from yambopy.dbs.electronsdb import *
 from yambopy.dbs.qpdb import *
-
+from yambopy.tools.skw import SkwInterpolator
 
 class ExcitonList():
     """
@@ -148,7 +157,7 @@ class YamboExcitonDB(YamboSaveDB):
         #add elements to dictionary
         kidx = set()
         for eh,kvc in enumerate(self.table-1):
-            k,v,c = kvc
+            k,v,c = kvc[0:3]
             kidx.add(k)
             transitions_v_to_c[(v,c)].append((k,eh))
         self.nkpoints = len(kidx)
@@ -561,7 +570,7 @@ class YamboExcitonDB(YamboSaveDB):
             All is done internally. No use of the bandstructure class
             (something to change)
         """
-        from abipy.core.skw import SkwInterpolator
+
         Im = 1.0j # Imaginary
         
         # Number of exciton states
@@ -706,7 +715,7 @@ class YamboExcitonDB(YamboSaveDB):
             #add weights
             sum_weights = 0
             for t,kcv in enumerate(self.table):
-                k,c,v = kcv[0:3]-1    # This is bug's source between yambo 4.4 and 5.0 
+                k,c,v = kcv[0:3]-1
                 this_weight = abs2(eivec[t])
                 weights[k,c] += this_weight
                 weights[k,v] += this_weight
@@ -1065,7 +1074,6 @@ class YamboExcitonDB(YamboSaveDB):
             for instance, kpoints_indexes should be read from savedb
 
         """
-        from abipy.core.skw import SkwInterpolator
 
         if verbose:
             print("This interpolation is provided by the SKW interpolator implemented in Abipy")
@@ -1140,6 +1148,7 @@ class YamboExcitonDB(YamboSaveDB):
         skw = SkwInterpolator(lpratio,ibz_kpoints,ibz_energies[na,:,:],fermie,nelect,cell,symrel,time_rev,verbose=verbose)
         kpoints_path = path.get_klist()[:,:3]
         energies = skw.interp_kpts(kpoints_path).eigens
+
         #interpolate weights
         na = np.newaxis
         skw = SkwInterpolator(lpratio,ibz_kpoints,ibz_weights[na,:,:],fermie,nelect,cell,symrel,time_rev,verbose=verbose)
@@ -1148,14 +1157,14 @@ class YamboExcitonDB(YamboSaveDB):
 
         #create band-structure object
         exc_bands = YambopyBandStructure(energies[0],kpoints_path,kpath=path,weights=exc_weights[0],size=size,**kwargs)
-        #exc_bands.set_fermi(self.nvbands)
+        #shift top v_band to zero
+        exc_bands.set_fermi(self.nvbands)
 
         return exc_bands
 
     def interpolate_transitions(self,energies,path,excitons,lpratio=5,f=None,size=1,verbose=True,**kwargs):
         """ Interpolate exciton bandstructure using SKW interpolation from Abipy
         """
-        from abipy.core.skw import SkwInterpolator
 
         if verbose:
             print("This interpolation is provided by the SKW interpolator implemented in Abipy")
@@ -1218,7 +1227,6 @@ class YamboExcitonDB(YamboSaveDB):
     def interpolate_spin(self,energies,spin_proj,path,excitons,lpratio=5,f=None,size=1,verbose=True,**kwargs):
         """ Interpolate exciton bandstructure using SKW interpolation from Abipy
         """
-        from abipy.core.skw import SkwInterpolator
 
         if verbose:
             print("This interpolation is provided by the SKW interpolator implemented in Abipy")
@@ -1387,8 +1395,16 @@ class YamboExcitonDB(YamboSaveDB):
             chi += r*G1 + r*G2
 
         #dimensional factors
-        if not self.Qpt=='1': q0norm = 2*np.pi*np.linalg.norm(self.car_qpoint)
-        if self.q_cutoff is not None: q0norm = self.q_cutoff
+        try:
+            if not self.Qpt=='1': q0norm = 2*np.pi*np.linalg.norm(self.car_qpoint)
+        except:
+            print("[WARNING] 1/q^2 set to 1 in eps2")
+            q0norm=1
+        try:
+            if self.q_cutoff is not None: q0norm = self.q_cutoff
+        except:
+            print("[WARNING] 1/q^2 set to 1 in eps2")
+            q0norm=1
 
         d3k_factor = self.lattice.rlat_vol/self.lattice.nkpoints
         cofactor = ha2ev*spin_degen/(2*np.pi)**3 * d3k_factor * (4*np.pi)  / q0norm**2
@@ -1396,6 +1412,83 @@ class YamboExcitonDB(YamboSaveDB):
         chi = 1. + chi*cofactor #We are actually computing the epsilon, not the chi.
 
         return w,chi
+    def get_pl(self,dipoles=None,dir=0,emin=0,emax=10,estep=0.01,broad=0.1,q0norm=1e-5, nexcitons='all',spin_degen=2,verbose=0,Boltz_Temp=300,**kwargs):
+        """
+        Calculate PL_0  using excitonic states
+        """
+        SPEED_OF_LIGHT    =  137*0.529*27.21/(6.582119569e-16)# finestructureconst * bohr2ang*HartreetoeV/hbar in eVs
+        #SPEED_OF_LIGHT = 2.99792458e8
+        RL_vol = self.lattice.rlat_vol
+        nqbz =1 # For Gamma only calculation this should be ok, not sure to be checked
+        # All prefactors should be checked
+        pl_prefactor = 32.0*np.pi**3*SPEED_OF_LIGHT*2.0/3.0*RL_vol/nqbz/(2.00*np.pi)**3
+        if nexcitons == 'all': nexcitons = self.nexcitons
+
+        #energy range
+        w = np.arange(emin,emax,estep,dtype=np.float32)
+        nenergies = len(w)
+        
+        if verbose:
+            print("energy range: %lf -> +%lf -> %lf "%(emin,estep,emax))
+            print("energy steps: %lf"%nenergies)
+
+        #initialize the susceptibility intensity
+        pl = np.zeros([len(w)],dtype=np.complex64)
+
+        if dipoles is None:
+            #get dipole
+            EL1 = self.l_residual
+            EL2 = self.r_residual
+        else:
+            #calculate exciton-light coupling
+            if verbose: print("calculate exciton-light coupling")
+            EL1,EL2 = self.project1(dipoles.dipoles[:,dir],nexcitons) 
+
+        if isinstance(broad,float): broad = [broad]*nexcitons
+
+        if isinstance(broad,tuple): 
+            broad_slope = broad[1]-broad[0]
+            min_exciton = np.min(self.eigenvalues.real)
+            broad = [ broad[0]+(es-min_exciton)*broad_slope for es in self.eigenvalues[:nexcitons].real]
+
+        if "gaussian" in broad or "lorentzian" in broad:
+            i = broad.find(":")
+            if i != -1:
+                value, eunit = broad[i+1:].split()
+                if eunit == "eV": sigma = float(value)
+                else: raise ValueError('Unknown unit %s'%eunit)
+
+            f = gaussian if "gaussian" in broad else lorentzian
+            broad = np.zeros([nexcitons])
+            for s in range(nexcitons):
+                es = self.eigenvalues[s].real
+                broad += f(self.eigenvalues.real,es,sigma)
+            broad = 0.1*broad/nexcitons
+
+        #iterate over the excitonic states
+        for s in range(nexcitons):
+            #get exciton energy
+            es = self.eigenvalues[s]
+            es_0 = self.eigenvalues[0] # first exciton level
+            print(es_0)
+            pl_0_weight = boltzman_f(es-es_0, Boltz_Temp)
+            #calculate the green's functions
+            G1 = -1/(   w - es + broad[s]*I)
+            G2 = -1/( - w - es - broad[s]*I)
+
+            r = EL1[s]*EL2[s]*pl_0_weight#*pl_prefactor
+            pl += r*G1 + r*G2
+
+        #dimensional factors
+        if not self.Qpt=='1': q0norm = 2*np.pi*np.linalg.norm(self.car_qpoint)
+        if self.q_cutoff is not None: q0norm = self.q_cutoff
+
+        d3k_factor = self.lattice.rlat_vol/self.lattice.nkpoints
+        cofactor = ha2ev*spin_degen/(2*np.pi)**3 * d3k_factor * (4*np.pi)  / q0norm**2
+        
+        pl = 1. + pl*cofactor #We are actually computing the epsilon, not the chi.
+
+        return w,pl
 
     def plot_chi_ax(self,ax,reim='im',n_brightest=-1,**kwargs):
         """Plot chi on a matplotlib axes"""
@@ -1620,7 +1713,6 @@ class YamboExcitonDB(YamboSaveDB):
         """ Interpolate exciton bandstructure using SKW interpolation from
         Abipy and SPIN-POLARIZED CALCULATIONS
         """
-        from abipy.core.skw import SkwInterpolator
 
         if verbose:
             print("This interpolation is provided by the SKW interpolator implemented in Abipy")

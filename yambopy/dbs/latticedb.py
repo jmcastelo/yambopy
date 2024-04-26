@@ -1,5 +1,9 @@
-# Copyright (c) 2018, Henrique Miranda
-# All rights reserved.
+#
+# License-Identifier: GPL
+#
+# Copyright (C) 2024 The Yambo Team
+#
+# Authors: HPC, FP
 #
 # This file is part of the yambopy project
 #
@@ -46,6 +50,12 @@ class YamboLatticeDB(object):
             natoms_a = database.variables['N_ATOMS'][:].astype(int).T
             tmp_an = database.variables['atomic_numbers'][:].astype(int)
             tmp_apos = database.variables['ATOM_POS'][:,:]
+            # Prevent case where n. of atomic species > n. of species in ATOM_POS
+            i_at_unused_types = [i_at for i_at, at_type_n in enumerate(natoms_a) if at_type_n == 0]
+            if len(i_at_unused_types)>0:
+                print('[WARNING] Found unused atomic type(s): ',i_at_unused_types)
+                natoms_a = [at_type_n for at_type_n in natoms_a if at_type_n!=0]
+                tmp_an = [tmp_an[i] for i in range(len(tmp_an)) if tmp_an[i] not in i_at_unused_types ]
 
             flatten = lambda l: [item for sublist in l for item in sublist]
             atomic_numbers = flatten([[tmp_an[n]]*na for n,na in enumerate(natoms_a)])
@@ -192,7 +202,7 @@ class YamboLatticeDB(object):
             time_rev_list[i] = ( i >= self.nsym/(self.time_rev+1) )
         return time_rev_list
 
-    def expand_kpoints(self,verbose=0,expand_mode=1,atol=1.e-6):
+    def expand_kpoints(self,verbose=1,expand_mode=1,atol=1.e-6):
         """
         Take a list of qpoints and symmetry operations and return the full brillouin zone
         with the corresponding index in the irreducible brillouin zone
@@ -338,4 +348,7 @@ class YamboLatticeDB(object):
         app("atom positions:")
         for an, pos in zip(self.atomic_numbers, self.red_atomic_positions):
             app( "%3d " % an + ("%12.8lf " * 3) % tuple(pos) )
+        if self.ibz_nkpoints!=self.nkpoints: app(f"{self.ibz_nkpoints} kpoints expanded to {self.nkpoints}")
+        else: app(f"{self.nkpoints} kpoints in the IBZ")
+        app(f"Time-reversal symmetry: {bool(self.time_rev)}")
         return "\n".join(lines)
