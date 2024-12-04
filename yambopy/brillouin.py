@@ -1,6 +1,7 @@
-from yambopy import *
-from qepy.lattice import Path
+from yambopy.lattice import rec_lat, red_car, car_red, isbetween
+from itertools import product
 from math import sqrt, cos, sin, tan
+import numpy as np
 
 class LAT():
     def __new__(cls, parameters = {}):
@@ -70,8 +71,7 @@ class CUB(LAT):
             'Gamma': [0, 0, 0],
             'M': [1/2, 1/2, 0],
             'R': [1/2, 1/2, 1/2],
-            'X': [0, 1/2, 0],
-            'X1': [0.5, 0, 0]
+            'X': [0, 1/2, 0]
         }
         
         self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'R', 'X'], ['M', 'R']]
@@ -97,11 +97,11 @@ class FCC(LAT):
         
         self.symmetry_points = {
             'Gamma': [0, 0, 0],
-            'K': [3/8, 3/8, 3/4],
-            'L': [1/2, 1/2, 1/2],
-            'U': [5/8, 1/4, 5/8],
-            'W': [1/2, 1/4, 3/4],
-            'X': [1/2, 0, 1/2]
+            'K': [-3/8, 3/8, 0],
+            'L': [0, 1/2, 0],
+            'U': [0, 5/8, 3/8],
+            'W': [-1/4, 1/2, 1/4],
+            'X': [0, 1/2, 1/2]
         }
         
         self.default_path = [['Gamma', 'X', 'W', 'K', 'Gamma', 'L', 'U', 'W', 'L', 'K'], ['U', 'X']]
@@ -129,9 +129,9 @@ class BCC(LAT):
 
             self.symmetry_points = {
                 'Gamma': [0, 0, 0],
-                'H': [1/2, 1/2, 1/2],
-                'P': [1/4, -1/4, 1/4],
-                'N': [0, 0, 1/2]
+                'H': [1/2, 1/2, -1/2],
+                'P': [3/4, 1/4, -1/4],
+                'N': [1/2, 0, -1/2]
             }
         elif ibrav == -3:
             self.lattice = (self.a / 2) * np.array([
@@ -211,12 +211,12 @@ class BCT(LAT):
 
             self.symmetry_points = {
                 'Gamma': [0, 0, 0],
-                'M': [1/2, -1/2, 1/2],
-                'N': [1/2, 0, 1/2],
-                'P': [3/4, 1/4, 1/4],
-                'X': [1/2, 0, 0],
+                'M': [1/2, 1/2, -1/2],
+                'N': [1/2, 1/2, 0],
+                'P': [1/4, 3/4, -1/4],
+                'X': [0, 1/2, -1/2],
                 'Z': [eta, eta, eta],
-                'Z1': [1 - eta, -eta, 1 - eta]
+                'Z1': [1 - eta, 1 - eta, -eta]
             }
 
             self.default_path = [['Gamma', 'X', 'M', 'Gamma', 'Z', 'P', 'N', 'Z1', 'M'], ['X', 'P']]
@@ -232,13 +232,13 @@ class BCT(LAT):
 
             self.symmetry_points = {
                 'Gamma': [0, 0, 0],
-                'N': [1/2, 0, 1/2],
-                'P': [3/4, 1/4, 1/4],
-                'Sigma': [eta, -eta, eta],
-                'Sigma1': [1 - eta, eta, 1 - eta],
-                'X': [1/2, 0, 0],
-                'Y': [1/2, -zeta, zeta],
-                'Y1': [1 - zeta, 1/2, 1/2],
+                'N': [1/2, 1/2, 0],
+                'P': [1/4, 3/4, -1/4],
+                'Sigma': [eta, eta, -eta],
+                'Sigma1': [1 - eta, 1 - eta, eta],
+                'X': [0, 1/2, -1/2],
+                'Y': [zeta, 1/2, -1/2],
+                'Y1': [1/2, 1 - zeta, zeta],
                 'Z': [1/2, 1/2, 1/2]
             }
 
@@ -261,8 +261,8 @@ class ORC(LAT):
 
         if self.a != self.b and self.b != self.c and self.c != self.a:
 
-            if not (self.a < self.b and self.b < self.c):
-                raise ValueError("Order of parameters: a < b < c")
+            #if not (self.a < self.b and self.b < self.c):
+                #raise ValueError("Order of parameters: a < b < c")
         
             self.variation = 'ORC'
  
@@ -303,7 +303,7 @@ class ORC(LAT):
 class ORCF(LAT):
     
     name = 'Face-centered orthorhombic'
-    
+    ibrav = 10
     required_parameters = ['a', 'b', 'c']
 
     def __new__(cls, parameters = {}):
@@ -311,66 +311,231 @@ class ORCF(LAT):
 
         if self.a != self.b and self.b != self.c and self.c != self.a:
 
-            if not (self.a < self.b and self.b < self.c):
-                raise ValueError("Order of parameters: a < b < c")
-
             self.lattice = np.array([
-                [0, self.b / 2, self.c / 2],
                 [self.a / 2, 0, self.c / 2],
-                [self.a / 2, self.b / 2, 0]
+                [self.a / 2, self.b / 2, 0],
+                [0, self.b / 2, self.c / 2]
             ])
 
-            expression = 1 / self.a**2 - 1 / self.b**2 - 1 / self.c**2
+            if self.a < self.b and self.a < self.c:
 
-            if expression > 0:
+                expression = 1 / self.a**2 - 1 / self.b**2 - 1 / self.c**2
 
-                self.variation = 'ORCF1'
-                self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['T', 'X1'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+                if expression > 0:
 
-            elif expression < 0:
+                    self.variation = 'ORCF1'
 
-                self.variation = 'ORCF2'
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['T', 'X1'], ['X', 'A', 'Z'], ['L', 'Gamma']]
 
-                eta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
-                phi = (1 + self.c**2 / self.b**2 - self.c**2 / self.a**2) / 4
-                delta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4.
-                
-                self.symmetry_points = {
-                    'Gamma': [0, 0, 0],
-                    'C': [1/2, 1/2 - eta, 1 - eta],
-                    'C1': [1/2, 1/2 + eta, eta],
-                    'D': [1/2 - delta, 1/2, 1 - delta],
-                    'D1': [1/2 + delta, 1/2, delta],
-                    'L': [1/2, 1/2, 1/2],
-                    'H': [1 - phi, 1/2 - phi, 1/2],
-                    'H1': [phi, 1/2 + phi, 1/2],
-                    'X': [0, 1/2, 1/2],
-                    'Y': [1/2, 0, 1/2],
-                    'Z': [1/2, 1/2, 0]
-                }
+                    if self.b < self.c:
+                        zeta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+                    else:
+                        zeta = (1 + self.a**2 / self.c**2 - self.a**2 / self.b**2) / 4
 
-                self.default_path = [['Gamma', 'Y', 'C', 'D', 'X', 'Gamma', 'Z', 'D1', 'H', 'C'], ['C1', 'Z'], ['X', 'H1'], ['H', 'Y'], ['L', 'Gamma']]
-            else: # expression == 0
+                    eta = (1 + self.a**2 / self.b**2 + self.a**2 / self.c**2) / 4
 
-                self.variation = 'ORCF3'
-                self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'X1': [1, 1 - eta, 1 - eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
 
-            if self.variation == 'ORCF1' or self.variation == 'ORCF3':
+                elif expression < 0:
 
-                zeta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
-                eta = (1 + self.a**2 / self.b**2 + self.a**2 / self.c**2) / 4
-                
-                self.symmetry_points = {
-                    'Gamma': [0, 0, 0],
-                    'A': [1/2, 1/2 + zeta, zeta],
-                    'A1': [1/2, 1/2 - zeta, 1 - zeta],
-                    'L': [1/2, 1/2, 1/2],
-                    'T': [1, 1/2, 1/2],
-                    'X': [0, eta, eta],
-                    'X1': [1, 1 - eta, 1 - eta],
-                    'Y': [1/2, 0, 1/2],
-                    'Z': [1/2, 1/2, 0]
-                }
+                    self.variation = 'ORCF2'
+
+                    self.default_path = [['Gamma', 'Y', 'C', 'D', 'X', 'Gamma', 'Z', 'D1', 'H', 'C'], ['C1', 'Z'], ['X', 'H1'], ['H', 'Y'], ['L', 'Gamma']]
+
+                    if self.b < self.c:
+                        eta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+                        phi = (1 + self.c**2 / self.b**2 - self.c**2 / self.a**2) / 4
+                        delta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4
+                    else:
+                        eta = (1 + self.a**2 / self.c**2 - self.a**2 / self.b**2) / 4
+                        phi = (1 + self.b**2 / self.c**2 - self.b**2 / self.a**2) / 4
+                        delta = (1 + self.c**2 / self.a**2 - self.c**2 / self.b**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'C': [1/2, 1/2 - eta, 1 - eta],
+                        'C1': [1/2, 1/2 + eta, eta],
+                        'D': [1/2 - delta, 1/2, 1 - delta],
+                        'D1': [1/2 + delta, 1/2, delta],
+                        'L': [1/2, 1/2, 1/2],
+                        'H': [1 - phi, 1/2 - phi, 1/2],
+                        'H1': [phi, 1/2 + phi, 1/2],
+                        'X': [0, 1/2, 1/2],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+                else: # expression == 0
+
+                    self.variation = 'ORCF3'
+
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
+                    if self.b < self.c:
+                        zeta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+                    else:
+                        zeta = (1 + self.a**2 / self.c**2 - self.a**2 / self.b**2) / 4
+
+                    eta = (1 + self.a**2 / self.b**2 + self.a**2 / self.c**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+            elif self.b < self.a and self.b < self.c:
+
+                expression = 1 / self.b**2 - 1 / self.a**2 - 1 / self.c**2
+
+                if expression > 0:
+
+                    self.variation = 'ORCF1'
+
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['T', 'X1'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
+                    zeta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4
+                    eta = (1 + self.b**2 / self.a**2 + self.b**2 / self.c**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'X1': [1, 1 - eta, 1 - eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+                elif expression < 0:
+
+                    self.variation = 'ORCF2'
+
+                    self.default_path = [['Gamma', 'Y', 'C', 'D', 'X', 'Gamma', 'Z', 'D1', 'H', 'C'], ['C1', 'Z'], ['X', 'H1'], ['H', 'Y'], ['L', 'Gamma']]
+
+                    eta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4
+                    phi = (1 + self.c**2 / self.a**2 - self.c**2 / self.b**2) / 4
+                    delta = (1 + self.a**2 / self.b**2 - self.a**2 / self.c**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'C': [1/2, 1/2 - eta, 1 - eta],
+                        'C1': [1/2, 1/2 + eta, eta],
+                        'D': [1/2 - delta, 1/2, 1 - delta],
+                        'D1': [1/2 + delta, 1/2, delta],
+                        'L': [1/2, 1/2, 1/2],
+                        'H': [1 - phi, 1/2 - phi, 1/2],
+                        'H1': [phi, 1/2 + phi, 1/2],
+                        'X': [0, 1/2, 1/2],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+                else: # expression == 0
+
+                    self.variation = 'ORCF3'
+
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
+                    zeta = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4
+                    eta = (1 + self.b**2 / self.a**2 + self.b**2 / self.c**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+            elif self.c < self.a and self.c < self.b:
+
+                expression = 1 / self.c**2 - 1 / self.a**2 - 1 / self.b**2
+
+                if expression > 0:
+
+                    self.variation = 'ORCF1'
+
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['T', 'X1'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
+                    zeta = (1 + self.c**2 / self.a**2 - self.c**2 / self.b**2) / 4
+                    eta = (1 + self.c**2 / self.a**2 + self.c**2 / self.b**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'X1': [1, 1 - eta, 1 - eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+                elif expression < 0:
+
+                    self.variation = 'ORCF2'
+
+                    self.default_path = [['Gamma', 'Y', 'C', 'D', 'X', 'Gamma', 'Z', 'D1', 'H', 'C'], ['C1', 'Z'], ['X', 'H1'], ['H', 'Y'], ['L', 'Gamma']]
+
+                    eta = (1 + self.c**2 / self.a**2 - self.c**2 / self.b**2) / 4
+                    phi = (1 + self.b**2 / self.a**2 - self.b**2 / self.c**2) / 4
+                    delta = (1 + self.a**2 / self.c**2 - self.a**2 / self.b**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'C': [1/2, 1/2 - eta, 1 - eta],
+                        'C1': [1/2, 1/2 + eta, eta],
+                        'D': [1/2 - delta, 1/2, 1 - delta],
+                        'D1': [1/2 + delta, 1/2, delta],
+                        'L': [1/2, 1/2, 1/2],
+                        'H': [1 - phi, 1/2 - phi, 1/2],
+                        'H1': [phi, 1/2 + phi, 1/2],
+                        'X': [0, 1/2, 1/2],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
+
+                else: # expression == 0
+
+                    self.variation = 'ORCF3'
+
+                    self.default_path = [['Gamma', 'Y', 'T', 'Z', 'Gamma', 'X', 'A1', 'Y'], ['X', 'A', 'Z'], ['L', 'Gamma']]
+
+                    zeta = (1 + self.c**2 / self.a**2 - self.c**2 / self.b**2) / 4
+                    eta = (1 + self.c**2 / self.a**2 + self.c**2 / self.b**2) / 4
+
+                    self.symmetry_points = {
+                        'Gamma': [0, 0, 0],
+                        'A': [1/2, 1/2 + zeta, zeta],
+                        'A1': [1/2, 1/2 - zeta, 1 - zeta],
+                        'L': [1/2, 1/2, 1/2],
+                        'T': [1, 1/2, 1/2],
+                        'X': [0, eta, eta],
+                        'Y': [1/2, 0, 1/2],
+                        'Z': [1/2, 1/2, 0]
+                    }
 
             return self
 
@@ -390,7 +555,7 @@ class ORCF(LAT):
 class ORCI(LAT):
     
     name = 'Body-centered orthorhombic'
-    
+    ibrav = 11
     required_parameters = ['a', 'b', 'c']
 
     def __new__(cls, parameters = {}):
@@ -538,13 +703,35 @@ class HEX(LAT):
         self.symmetry_points = {
             'Gamma': [0, 0, 0],
             'A': [0, 0, 1/2],
-            'H': [1/3, 1/3, 1/2],
-            'K': [1/3, 1/3, 0],
+            'H': [2/3, -1/3, 1/2],
+            'K': [2/3, -1/3, 0],
             'L': [1/2, 0, 1/2],
             'M': [1/2, 0, 0]
         }
 
         self.default_path = [['Gamma', 'M', 'K', 'Gamma', 'A', 'L', 'H', 'A'], ['L', 'M'], ['K', 'H']]
+
+        return self
+
+class TRG(LAT):
+
+    name = 'Trigonal'
+    ibrav = 5
+    required_parameters = ['a', 'alpha']
+
+    def __new__(cls, parameters = {}):
+        self = super().__new__(cls, parameters)
+
+        alpha = np.radians(self.alpha)
+
+        s = sqrt((1 - cos(alpha)) * 2 / 3)
+        c = sqrt((1 + 2 * cos(alpha)) / 3)
+
+        self.lattice = self.a * np.array([
+            [sqrt(3) * s / 2, -s / 2, c],
+            [0, s, c],
+            [-sqrt(3) * s / 2, -s / 2, c]
+        ])
 
         return self
 
@@ -642,6 +829,8 @@ class BrillouinZone():
             self.bz = BCC(ibrav, parameters)
         elif ibrav == 4:
             self.bz = HEX(parameters)
+        elif ibrav == 5:
+            self.bz = TRG(parameters)
         elif ibrav == 6:
             self.bz = TET(parameters)
         elif ibrav == 7:
@@ -650,8 +839,10 @@ class BrillouinZone():
             self.bz = ORC(parameters)
         elif ibrav == 9 or ibrav == -9:
             self.bz = ORCC(ibrav, parameters)
+        elif ibrav == 10:
+            self.bz = ORCF(parameters)
         else:
-            raise ValueError(f"Wrong lattice type: {ibrav}")
+            raise ValueError(f"Unsupported lattice type: {ibrav}")
 
         self.parameters = parameters
 
@@ -711,10 +902,6 @@ class BrillouinZone():
         # Reset interpolated path in cartesian coordinates
 
         self.interpolated_path_car = None
-
-        # Set legacy path
-
-        self.set_legacy_path()
 
     def get_interpolated_path(self, out_coord_type = 'car', qe_out = False):
         """
@@ -881,67 +1068,6 @@ class BrillouinZone():
 
         return intervals
 
-    def set_legacy_path(self):
-        """
-        Set path in cartesian coordinates, labels and intervals
-        """
-        # Obtain path in reduced coordinates
-
-        path_car = self.get_path_cartesian()
-        
-        # Flatten path
-
-        path_car = [kpoint for subpath in path_car for kpoint in subpath]
-
-        # Legacy data structures
-
-        self.kpoints = np.array(path_car)
-        self.klabels = self.get_path_labels()
-        self.intervals = self.get_intervals()
-
-    def get_legacy_path(self):
-        """
-        Construct and return a legacy Path object
-        """
-        # Construct list of k-points and labels
-
-        klist = [list(k) for k in zip(self.kpoints.tolist(), self.klabels)]
-
-        return Path(klist, self.intervals)
-
-    def as_dict(self):
-        """
-        LEGACY: Obtain path as dictionary
-        """
-        d = {
-            'kpoints': self.kpoints.tolist(),
-            'klabels': self.klabels,
-            'intervals': self.intervals
-        }
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        klist = zip(d['kpoints'], d['klabels'])
-        return Path(klist, d['intervals'])
-
-    """
-    def distances(self):
-        '''
-        LEGACY: Obtain list of distances between first and consecutive k-points on path.
-        '''
-        distance = 0
-        distances = []
-        kpoint1 = self.kpoints[0]
-
-        for kpoint2 in self.kpoints:
-            distance += np.linalg.norm(kpoint1 - kpoint2)
-            distances.append(distance)
-            kpoint1 = kpoint2
-    
-        return distances
-    """
-
     def distances(self, path):
         distance = 0
         subpath_distances = [0]
@@ -973,38 +1099,11 @@ class BrillouinZone():
 
         return distances
 
-    def set_xticks(self, ax, subpath_index):
-        """
-        LEGACY: Set x-axis ticks and labels
-        """
-        ax.set_xticks(ticks = self.distances(self.path_car), labels = self.klabels)
-        #ax.set_xticklabels(self.klabels)
-
-    def __iter__(self):
-        """
-        LEGACY: Iterator???
-        """
-        return iter(zip(self.kpoints, self.klabels, self.distances(self.path_car)))
-
     def get_klist(self):
         """
-        LEGACY: Output in the format of QE == [ [Kx, Ky, Kz, 1], ... ]
+        Output in the format of QE == [ [Kx, Ky, Kz, 1], ... ]
         """
         return self.get_interpolated_path('red', True)
-
-    def get_indexes(self):
-        """
-        LEGACY: Obtain index of each k-point on path
-        """
-        indexes = []
-        index = 0
-
-        for n, interval in enumerate(self.intervals):
-            indexes.append([index, self.klabels[n]])
-            index += interval
-        indexes.append([index, self.klabels[-1]])
-
-        return indexes
 
     def get_collinear_kpoints(self, mesh, mesh_indexes, debug = False):
         """
