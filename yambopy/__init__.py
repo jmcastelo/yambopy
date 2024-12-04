@@ -59,6 +59,9 @@ from yambopy.units import *
 #lattice-related operations
 from yambopy.lattice import *
 
+#brillouin zone paths
+from yambopy.brillouin import *
+
 #kpoint mesh operations
 from yambopy.kpoints import *
 
