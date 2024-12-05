@@ -7,7 +7,7 @@ import numpy as np
 class BrillouinZone():
     """
     Constructs interpolated paths in any of the existing Brillouin zones.
-    Follows QE's classification criterion (ibrav)
+    Follows QE's classification criterion (ibrav).
     See: https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm226
     """
 
@@ -34,10 +34,9 @@ class BrillouinZone():
         14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
     }
 
-    def __init__(self, ibrav, parameters = {}):
+    def __init__(self, ibrav, parameters = {}, path = None, npoints = None, density = None, extra_points = None):
         """
-        Initializes the Brillouin zone of a selected lattice type,
-        with given required parameters.
+        Initializes the Brillouin zone of a selected lattice type, with given required parameters and path.
         """
 
         # Check if valid Bravais-lattice index
@@ -179,73 +178,133 @@ class BrillouinZone():
                       c * (cos(radians(alpha)) - cos(radians(beta)) * cos(radians(gamma))) / sin(radians(gamma)),
                       c * sqrt(1 + 2 * cos(radians(alpha)) * cos(radians(beta)) * cos(radians(gamma)) - cos(radians(alpha)) ** 2 - cos(radians(beta)) ** 2 - cos(radians(gamma)) ** 2) / sin(radians(gamma))]
 
-        # Set Cell, Bravais and reciprocal lattices
+        # Set Cell and Bravais lattice
 
         self.cell = Cell([v1, v2, v3])
         self.blat = self.cell.get_bravais_lattice()
-        self.rcell = self.cell.reciprocal()
 
-        # Initialize path with default path
+        # Save arguments as dictionary
 
-        self.set_path()
+        self.arguments = {
+            'ibrav': ibrav,
+            'parameters' : parameters,
+            'path': path,
+            'npoints': npoints,
+            'density': density,
+            'extra_points': extra_points
+        }
+
+        # Construct path in the BZ
+
+        self.set_path(path, npoints, density, extra_points)
+
+
+
+    def as_dict(self):
+        """
+        Return as dictionary all arguments needed to construct object of this class
+        """
+
+        return self.arguments
+
+
+
+    @classmethod
+    def from_dict(cls, args):
+        """
+        Construct a new object of this class, given a dictionary with all arguments needed
+        """
+
+        return cls(ibrav = args['ibrav'], parameters = args['parameters'], path = args['path'], npoints = args['npoints'], density = args['density'], extra_points = args['extra_points'])
 
 
 
     def info(self):
         """
-        Prints description of the Bravais and reciprocal lattices
+        Prints description of the Bravais lattice
         """
 
         print(self.blat.description())
-        print(f"Reciprocal lattice:\n{self.rcell[:]}")
 
 
 
-    def set_path(self, path = None, npoints = None, density = None, special_points = None):
+    def set_path(self, path = None, npoints = None, density = None, extra_points = None):
         """
         Sets the path as ASE's BandPath.
-        Augment high symmetry points with special_points
+        Augment standard high symmetry points with custom extra points.
         If no arguments given: default path.
         """
 
-        total_special_points = None
+        self.special_points = self.blat.get_special_points()
 
-        if isinstance(special_points, dict):
-            total_special_points = special_points | self.blat.get_special_points()
+        if isinstance(extra_points, dict):
+            self.special_points = extra_points | self.blat.get_special_points()
 
-        self.bandpath = self.cell.bandpath(path = path, npoints = npoints, density = density, special_points = total_special_points)
+        self.bandpath = self.cell.bandpath(path = path, npoints = npoints, density = density, special_points = self.special_points)
+
+        # Update arguments dictionary
+
+        self.arguments['path'] = path
+        self.arguments['npoints'] = npoints
+        self.arguments['density'] = density
+        self.arguments['extra_points'] = extra_points
+
+        print(self.bandpath.path)
 
 
 
-    def path_cartesian(self):
+    def kpoints(self, coords = 'red', qe = False, interpolated = False):
         """
-        Return path in cartesian coordinates.
+        Returns ndarray of k-points along the path.
+
+        Input:
+        * coords: 'red' for reduced, or 'car' for Cartesian coordinates.
+        * qe: True for Quantum ESPRESSO's format -> [ [Kx, Ky, Kz, 1], ... ]
+        * interpolated: True for fully interpolated path k-points, False for only high-symmetry and extra points defining the path.
+
+        Output:
+        * ndarray containing the k-points of the path in the selected coordinates and format.
         """
 
-        return self.bandpath.cartesian_kpts()
+        # To get only the k-points defining the path with no interpolation, we interpolate existing path with no intermediate points:
+        #   self.bandpath.interpolate(npoints = 0)
+
+        # To get path with Quantum ESPRESSO's format:
+        #   Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
+
+        if coords == 'red':
+            if qe:
+                if interpolated:
+                    return np.pad(self.bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                else:
+                    return np.pad(self.bandpath.interpolate(npoints = 0).kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
+            else:
+                if interpolated:
+                    return self.bandpath.kpts
+                else:
+                    return self.bandpath.interpolate(npoints = 0).kpts
+        elif coords == 'car':
+            if qe:
+                if interpolated:
+                    return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                else:
+                    return np.pad(self.bandpath.interpolate(npoints = 0).cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+            else:
+                if interpolated:
+                    return self.bandpath.cartesian_kpts()
+                else:
+                    return self.bandpath.interpolate(npoints = 0).cartesian_kpts()
+        else:
+            raise ValueError(f"coords: {coords} not supported.")
 
 
 
-    def path_reduced(self):
+    def linear_kpoint_axis(self):
         """
-        Return path in reduced coordinates.
+        Get an x-axis to be used when plotting a band structure.
+
+        The first of the returned lists is a list of cumulative distances between k-points.
+        The second is list of x-coordinates of the special points (can be used as xticks).
+        The third is a list of the special points as strings (can be used as xticklabels).
         """
-
-        return self.bandpath.kpts;
-
-
-
-    def path_qe(self):
-        """
-        Returns path in QE format: [ [Kx, Ky, Kz, 1], ... ]
-        """
-
-        # Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension
-        # So new shape is (nkpts, 4)
-
-        return np.pad(self.bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
-
-
-
-    def special_points(self):
-        return self.blat.get_special_points()
+        return self.bandpath.get_linear_kpoint_axis()
