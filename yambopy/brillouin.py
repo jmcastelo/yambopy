@@ -1,5 +1,6 @@
-from math import sqrt, cos, sin, radians
+from math import sqrt, cos, sin, radians, pi
 from ase.cell import Cell
+from ase.dft.kpoints import parse_path_string
 import numpy as np
 
 
@@ -34,7 +35,7 @@ class BrillouinZone():
         14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
     }
 
-    def __init__(self, ibrav, parameters = {}, path = None, npoints = None, density = None, extra_points = None):
+    def __init__(self, ibrav, parameters = {}, path = None, extra_points = None):
         """
         Initializes the Brillouin zone of a selected lattice type, with given required parameters and path.
         """
@@ -68,7 +69,7 @@ class BrillouinZone():
         beta = parameters.get('beta', None)
         gamma = parameters.get('gamma', None)
 
-        # Set lattice vectors
+        # Set lattice vectors as QE does
 
         match ibrav:
             # CUB
@@ -189,14 +190,22 @@ class BrillouinZone():
             'ibrav': ibrav,
             'parameters' : parameters,
             'path': path,
-            'npoints': npoints,
-            'density': density,
             'extra_points': extra_points
         }
 
-        # Construct path in the BZ
+        # Construct path in the BZ consisting only of the special points, i.e. no interpolation made
 
-        self.set_path(path, npoints, density, extra_points)
+        #self.special_points = self.blat.get_special_points()
+        self.special_points = self.transformed_special_points()
+
+        if isinstance(extra_points, dict):
+            self.special_points = extra_points | self.special_points
+
+        if path == None:
+            path = self.blat.special_path
+
+        self.bandpath = self.cell.bandpath(path = path, npoints = 0, special_points = self.special_points)
+        self.blat_bandpath = self.blat.bandpath(path = path, npoints = 0)
 
 
 
@@ -215,7 +224,7 @@ class BrillouinZone():
         Construct a new object of this class, given a dictionary with all arguments needed
         """
 
-        return cls(ibrav = args['ibrav'], parameters = args['parameters'], path = args['path'], npoints = args['npoints'], density = args['density'], extra_points = args['extra_points'])
+        return cls(ibrav = args['ibrav'], parameters = args['parameters'], path = args['path'], extra_points = args['extra_points'])
 
 
 
@@ -226,77 +235,92 @@ class BrillouinZone():
 
         print(self.blat.description())
 
+        print(self.blat.cellpar())
+        print(np.round(self.blat.tocell()[:] / self.arguments['parameters']['a'], 6))
+        print(np.round(self.blat.tocell().reciprocal()[:] * self.arguments['parameters']['a'], 6))
+        print(self.blat_bandpath.kpts)
+        print(np.round(self.blat_bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
+        print('### Cell ###')
+        print(self.cell.cellpar())
+        print(np.round(self.cell[:] / self.arguments['parameters']['a'], 6))
+        print(np.round(self.cell.reciprocal()[:] * self.arguments['parameters']['a'], 6))
+        print(np.round(self.bandpath.kpts, 6))
+        print(np.round(self.bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
 
 
-    def set_path(self, path = None, npoints = None, density = None, extra_points = None):
+
+    def transformed_special_points(self):
+        Asc = self.blat.tocell()[:]
+        Aqe = self.cell[:]
+        Asc_inv = np.linalg.inv(Asc)
+        S = np.matmul(Aqe, Asc_inv)
+
+        #Bsc = self.blat.tocell().reciprocal()[:]
+        #Bqe = self.cell.reciprocal()[:]
+        #Bqe_inv = np.linalg.inv(Bqe)
+        #S = np.transpose(np.matmul(Bsc, Bqe_inv))
+
+        special_points = {}
+        for label, coords in self.blat.get_special_points().items():
+            special_points[label] = S.dot(coords)
+
+        print(special_points)
+
+        return special_points
+
+
+
+    def kpoints(self, coords = 'red'):
         """
-        Sets the path as ASE's BandPath.
-        Augment standard high symmetry points with custom extra points.
-        If no arguments given: default path.
-        """
-
-        self.special_points = self.blat.get_special_points()
-
-        if isinstance(extra_points, dict):
-            self.special_points = extra_points | self.blat.get_special_points()
-
-        self.bandpath = self.cell.bandpath(path = path, npoints = npoints, density = density, special_points = self.special_points)
-
-        # Update arguments dictionary
-
-        self.arguments['path'] = path
-        self.arguments['npoints'] = npoints
-        self.arguments['density'] = density
-        self.arguments['extra_points'] = extra_points
-
-        print(self.bandpath.path)
-
-
-
-    def kpoints(self, coords = 'red', qe = False, interpolated = False):
-        """
-        Returns ndarray of k-points along the path.
+        Returns ndarray of the k-points of the path (no interpolation made).
 
         Input:
-        * coords: 'red' for reduced, or 'car' for Cartesian coordinates.
-        * qe: True for Quantum ESPRESSO's format -> [ [Kx, Ky, Kz, 1], ... ]
-        * interpolated: True for fully interpolated path k-points, False for only high-symmetry and extra points defining the path.
+            coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
 
         Output:
-        * ndarray containing the k-points of the path in the selected coordinates and format.
+            ndarray containing the k-points of the path in the selected coordinates.
         """
 
-        # To get only the k-points defining the path with no interpolation, we interpolate existing path with no intermediate points:
-        #   self.bandpath.interpolate(npoints = 0)
+        if coords == 'red':
+            return self.bandpath.kpts
+        elif coords == 'car':
+            return self.bandpath.cartesian_kpts()
+        else:
+            raise ValueError(f"coords: {coords} not supported.")
+
+
+
+    def kpoints_interpolated(self, coords = 'red', npoints = None, density = None, qe = False):
+        """
+        Returns ndarray of interpolated k-points along the path.
+
+        Input:
+            coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
+            npoints (int): Total number of k-points to interpolate. At least one point is added for each special point in the path.
+            density (float): Density of k-points along the path in Angstron**-1.
+            qe: True for output in Quantum ESPRESSO's format [ [Kx, Ky, Kz, 1], ... ]
+
+        Output:
+            ndarray containing the interpolated k-points along the path in the selected coordinates and format.
+        """
+
+        interpolated_bandpath = self.bandpath.interpolate(npoints = npoints, density = density)
 
         # To get path with Quantum ESPRESSO's format:
         #   Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
 
         if coords == 'red':
             if qe:
-                if interpolated:
-                    return np.pad(self.bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
-                else:
-                    return np.pad(self.bandpath.interpolate(npoints = 0).kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(interpolated_bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                if interpolated:
-                    return self.bandpath.kpts
-                else:
-                    return self.bandpath.interpolate(npoints = 0).kpts
+                return interpolated_bandpath.kpts
         elif coords == 'car':
             if qe:
-                if interpolated:
-                    return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
-                else:
-                    return np.pad(self.bandpath.interpolate(npoints = 0).cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(interpolated_bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                if interpolated:
-                    return self.bandpath.cartesian_kpts()
-                else:
-                    return self.bandpath.interpolate(npoints = 0).cartesian_kpts()
+                return interpolated_bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
-
 
 
     def linear_kpoint_axis(self):
@@ -308,3 +332,16 @@ class BrillouinZone():
         The third is a list of the special points as strings (can be used as xticklabels).
         """
         return self.bandpath.get_linear_kpoint_axis()
+
+
+
+    def kpoints_piecewise(self, coords = 'red'):
+        sections = parse_path_string(self.bandpath.path)
+
+        if coords == 'red':
+            return [[self.special_points[label] for label in section] for section in sections]
+        elif coords == 'car':
+            reciprocal_cell = self.cell.reciprocal()
+            return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+        else:
+            raise ValueError(f"coords: {coords} not supported.")
