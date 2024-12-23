@@ -35,6 +35,32 @@ class BrillouinZone():
         14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
     }
 
+    selected_points_qe = {
+        'BCC': {
+            'H': [1 / 2, 1 / 2, -1 / 2],
+            'P': [3 / 4, 1 / 4, -1 / 4],
+            'N': [1 / 2, 0, -1 / 2]
+        },
+        'HEX': {
+            'A': [0, 0, 1 / 2],
+            'H': [2 / 3, -1 / 3, 1 / 2],
+            'K': [2 / 3, -1 / 3, 0],
+            'L': [1 / 2, 0, 1 / 2],
+            'M': [1 / 2, 0, 0]
+        },
+        'RHL2': {
+            'F': [0, 1 / 2, -1 / 2],
+            'L': [0, 1 / 2, 0],
+            'Z': [1 / 2, 1 / 2, -1 / 2]
+        }
+    }
+
+    selected_labels = {
+        'BCC': ['H', 'P', 'N'],
+        'HEX': ['K', 'L', 'M'],
+        'RHL2': ['F', 'L', 'Z']
+    }
+
     def __init__(self, ibrav, parameters = {}, path = None, extra_points = None):
         """
         Initializes the Brillouin zone of a selected lattice type, with given required parameters and path.
@@ -59,6 +85,15 @@ class BrillouinZone():
             if any(param == p for p in ['a', 'b', 'c']):
                 if value <= 0:
                     raise ValueError(f"{param} parameter must be positive.")
+
+        # Save arguments as dictionary
+
+        self.arguments = {
+            'ibrav': ibrav,
+            'parameters' : parameters,
+            'path': path,
+            'extra_points': extra_points
+        }
 
         # Set parameters
 
@@ -195,7 +230,6 @@ class BrillouinZone():
 
         # Construct path in the BZ consisting only of the special points, i.e. no interpolation made
 
-        #self.special_points = self.blat.get_special_points()
         self.special_points = self.transformed_special_points()
 
         if isinstance(extra_points, dict):
@@ -233,38 +267,74 @@ class BrillouinZone():
         Prints description of the Bravais lattice
         """
 
+        print('\n### SC Cell ###')
         print(self.blat.description())
-
+        print('Parameters:')
         print(self.blat.cellpar())
+        print('Direct:')
         print(np.round(self.blat.tocell()[:] / self.arguments['parameters']['a'], 6))
+        print('Reciprocal:')
         print(np.round(self.blat.tocell().reciprocal()[:] * self.arguments['parameters']['a'], 6))
-        print(self.blat_bandpath.kpts)
+        print('Cartesian:')
         print(np.round(self.blat_bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
-        print('### Cell ###')
+        print('Fractional:')
+        print(self.blat_bandpath.kpts)
+
+        print('\n### QE Cell ###')
         print(self.cell.cellpar())
+        print('Direct:')
         print(np.round(self.cell[:] / self.arguments['parameters']['a'], 6))
+        print('Reciprocal:')
         print(np.round(self.cell.reciprocal()[:] * self.arguments['parameters']['a'], 6))
-        print(np.round(self.bandpath.kpts, 6))
+        print('Cartesian:')
         print(np.round(self.bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
+        print('Fractional:')
+        print(np.round(self.bandpath.kpts, 6))
+        print('Transformed:')
+        print(np.round(np.einsum('li,ji->lj', self.bandpath.cartesian_kpts(), self.S) * self.arguments['parameters']['a'], 6))
+
+
+
+    def change_of_basis_matrices(self):
+        Bqe = self.cell.reciprocal()[:]
+        Bsc = self.blat.tocell().reciprocal()[:]
+        Bsc_inv = np.linalg.inv(Bsc)
+
+        variant = self.blat.variant
+
+        # R != I
+        if variant in self.selected_points_qe:
+            fcoords_qe = self.selected_points_qe[variant]
+            fcoords_sc = self.blat.get_special_points()
+
+            labels = self.selected_labels[variant]
+
+            Fqe = np.array([fcoords_qe[labels[0]], fcoords_qe[labels[1]], fcoords_qe[labels[2]]])
+            Fsc = np.array([fcoords_sc[labels[0]], fcoords_sc[labels[1]], fcoords_sc[labels[2]]])
+            Fsc_inv = np.linalg.inv(Fsc)
+
+            R = np.matmul(Fsc_inv, Fqe)
+            S = np.matmul(Bsc_inv, np.matmul(R, Bqe))
+        # R = I
+        else:
+            R = np.eye(3)
+            S = np.matmul(Bsc_inv, Bqe)
+
+        print('### Change of basis matrices ###')
+        print(f"R = {np.round(R, 6)}")
+        print(f"S = {np.round(S, 6)}")
+        print(f"det(S) = {np.linalg.det(S)}")
+
+        return S, R
 
 
 
     def transformed_special_points(self):
-        Asc = self.blat.tocell()[:]
-        Aqe = self.cell[:]
-        Asc_inv = np.linalg.inv(Asc)
-        S = np.matmul(Aqe, Asc_inv)
-
-        #Bsc = self.blat.tocell().reciprocal()[:]
-        #Bqe = self.cell.reciprocal()[:]
-        #Bqe_inv = np.linalg.inv(Bqe)
-        #S = np.transpose(np.matmul(Bsc, Bqe_inv))
+        self.S, R = self.change_of_basis_matrices()
 
         special_points = {}
         for label, coords in self.blat.get_special_points().items():
-            special_points[label] = S.dot(coords)
-
-        print(special_points)
+            special_points[label] = np.matmul(coords, R)
 
         return special_points
 
