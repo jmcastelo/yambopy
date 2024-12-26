@@ -27,7 +27,7 @@ class BrillouinZone():
         -9: ['a', 'b', 'c'],
         91: ['a', 'b', 'c'],
         10: ['a', 'b', 'c'],
-        11: ['a', 'b', 'b'],
+        11: ['a', 'b', 'c'],
         12: ['a', 'b', 'c', 'gamma'],
         -12: ['a', 'b', 'c', 'beta'],
         13: ['a', 'b', 'c', 'gamma'],
@@ -36,29 +36,84 @@ class BrillouinZone():
     }
 
     selected_points_qe = {
-        'BCC': {
-            'H': [1 / 2, 1 / 2, -1 / 2],
-            'P': [3 / 4, 1 / 4, -1 / 4],
-            'N': [1 / 2, 0, -1 / 2]
+        3: {
+            'BCC': {
+                'H': [1/2, 1/2, -1/2],
+                'P': [3/4, 1/4, -1/4],
+                'N': [1/2, 0, -1/2]
+            }
         },
-        'HEX': {
-            'A': [0, 0, 1 / 2],
-            'H': [2 / 3, -1 / 3, 1 / 2],
-            'K': [2 / 3, -1 / 3, 0],
-            'L': [1 / 2, 0, 1 / 2],
-            'M': [1 / 2, 0, 0]
+        4: {
+            'HEX': {
+                'K': [2/3, -1/3, 0],
+                'L': [1/2, 0, 1/2],
+                'M': [1/2, 0, 0]
+            }
         },
-        'RHL2': {
-            'F': [0, 1 / 2, -1 / 2],
-            'L': [0, 1 / 2, 0],
-            'Z': [1 / 2, 1 / 2, -1 / 2]
+        5: {
+            'RHL2': {
+                'F': [0, 1/2, -1/2],
+                'L': [0, 1/2, 0],
+                'Z': [1/2, 1/2, -1/2]
+            }
+        },
+        7: {
+            'BCT1': {
+                'M': [1/2, 1/2, -1/2],
+                'N': [1/2, 1/2, 0],
+                'P': [1/4, 3/4, -1/4]
+            },
+            'BCT2': {
+                'N': [1/2, 1/2, 0],
+                'P': [1/4, 3/4, -1/4],
+                'X': [0, 1/2, -1/2]
+            }
+        },
+        9: {
+            'ORCC': {
+                'R': [1/2, 0, 1/2],
+                'S': [1/2, 0, 0],
+                'T': [1/2, 1/2, 1/2]
+            }
+        },
+        10: {
+            'ORCF1': {
+                'L': [1/2, 1/2, 1/2],
+                'Y': [0, 1/2, 1/2],
+                'Z': [1/2, 0, 1/2]
+            },
+            'ORCF2': {
+                'L': [1/2, 1/2, 1/2],
+                'Y': [0, 1/2, 1/2],
+                'Z': [1/2, 0, 1/2]
+            },
+            'ORCF3': {
+                'L': [1/2, 1/2, 1/2],
+                'Y': [0, 1/2, 1/2],
+                'Z': [1/2, 0, 1/2]
+            }
+        },
+        11: {
+            'ORCI': {
+                'R': [1/2, 0, 0],
+                'S': [1/2, 1/2, 0],
+                'T': [1/2, 0, -1/2]
+            }
+        },
+        12: {
+            'MCL': {
+                'X': [1/2, 0, 0],
+                'Y': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
+            }
+        },
+        -12: {
+            'MCL': {
+                'X': [1/2, 0, 0],
+                'Y': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
+            }
         }
-    }
-
-    selected_labels = {
-        'BCC': ['H', 'P', 'N'],
-        'HEX': ['K', 'L', 'M'],
-        'RHL2': ['F', 'L', 'Z']
     }
 
     def __init__(self, ibrav, parameters = {}, path = None, extra_points = None):
@@ -219,15 +274,6 @@ class BrillouinZone():
         self.cell = Cell([v1, v2, v3])
         self.blat = self.cell.get_bravais_lattice()
 
-        # Save arguments as dictionary
-
-        self.arguments = {
-            'ibrav': ibrav,
-            'parameters' : parameters,
-            'path': path,
-            'extra_points': extra_points
-        }
-
         # Construct path in the BZ consisting only of the special points, i.e. no interpolation made
 
         self.special_points = self.transformed_special_points()
@@ -296,22 +342,30 @@ class BrillouinZone():
 
 
     def change_of_basis_matrices(self):
+        print('### Change of basis matrices ###')
+
         Bqe = self.cell.reciprocal()[:]
         Bsc = self.blat.tocell().reciprocal()[:]
         Bsc_inv = np.linalg.inv(Bsc)
 
+        ibrav = self.arguments['ibrav']
         variant = self.blat.variant
 
         # R != I
-        if variant in self.selected_points_qe:
-            fcoords_qe = self.selected_points_qe[variant]
+        if ibrav in self.selected_points_qe and variant in self.selected_points_qe[ibrav]:
+            fcoords_qe = self.selected_points_qe[ibrav][variant]
             fcoords_sc = self.blat.get_special_points()
 
-            labels = self.selected_labels[variant]
+            labels = list(self.selected_points_qe[ibrav][variant].keys())
 
             Fqe = np.array([fcoords_qe[labels[0]], fcoords_qe[labels[1]], fcoords_qe[labels[2]]])
             Fsc = np.array([fcoords_sc[labels[0]], fcoords_sc[labels[1]], fcoords_sc[labels[2]]])
             Fsc_inv = np.linalg.inv(Fsc)
+
+            Kqe = np.matmul(Fqe, Bqe)
+            Ksc = np.matmul(Fsc, Bsc)
+            print(f"det(Kqe) = {np.linalg.det(Kqe)}")
+            print(f"det(Ksc) = {np.linalg.det(Ksc)}")
 
             R = np.matmul(Fsc_inv, Fqe)
             S = np.matmul(Bsc_inv, np.matmul(R, Bqe))
@@ -320,10 +374,12 @@ class BrillouinZone():
             R = np.eye(3)
             S = np.matmul(Bsc_inv, Bqe)
 
-        print('### Change of basis matrices ###')
+        C = np.linalg.inv(R)
+
         print(f"R = {np.round(R, 6)}")
         print(f"S = {np.round(S, 6)}")
         print(f"det(S) = {np.linalg.det(S)}")
+        print(f"C = {np.round(C, 6)}")
 
         return S, R
 
