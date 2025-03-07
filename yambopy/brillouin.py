@@ -36,6 +36,20 @@ class BrillouinZone():
     }
 
     selected_points_qe = {
+        1: {
+            'CUB': {
+                'M': [1/2, 1/2, 0],
+                'R': [1/2, 1/2, 1/2],
+                'X': [0, 1/2, 0]
+            }
+        },
+        2: {
+            'FCC': {
+                'K': [-3/8, 3/8, 0],
+                'L': [0, 1/2, 0],
+                'U': [0, 5/8, 3/8]
+            }
+        },
         3: {
             'BCC': {
                 'H': [1/2, 1/2, -1/2],
@@ -51,10 +65,22 @@ class BrillouinZone():
             }
         },
         5: {
+            'RHL1': {
+                'F': [1/2, 1/2, 0],
+                'L': [1/2, 0, 0],
+                'L1': [0, 0, -1/2]
+            },
             'RHL2': {
                 'F': [0, 1/2, -1/2],
                 'L': [0, 1/2, 0],
                 'Z': [1/2, 1/2, -1/2]
+            }
+        },
+        6: {
+            'TET': {
+                'M': [1/2, 1/2, 0],
+                'X': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
             }
         },
         7: {
@@ -67,6 +93,13 @@ class BrillouinZone():
                 'N': [1/2, 1/2, 0],
                 'P': [1/4, 3/4, -1/4],
                 'X': [0, 1/2, -1/2]
+            }
+        },
+        8: {
+            'ORC': {
+                'X': [1/2, 0, 0],
+                'Y': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
             }
         },
         9: {
@@ -109,7 +142,8 @@ class BrillouinZone():
         },
         -12: {
             'MCL': {
-                'X': [1/2, 0, 0],
+                #'X': [1/2, 0, 0],
+                'A': [1/2, 1/2, 0],
                 'Y': [0, 1/2, 0],
                 'Z': [0, 0, 1/2]
             }
@@ -313,32 +347,37 @@ class BrillouinZone():
         Prints description of the Bravais lattice
         """
 
+        a = self.arguments['parameters']['a']
+
         print('\n### SC Cell ###')
         print(self.blat.description())
         print('Parameters:')
         print(self.blat.cellpar())
         print('Direct:')
-        print(np.round(self.blat.tocell()[:] / self.arguments['parameters']['a'], 6))
+        print(np.round(self.blat.tocell()[:] / a, 6))
+        print('Direct QE -> SC:')
+        print(np.round(np.linalg.inv(np.matmul(self.U, np.matmul(np.linalg.inv(self.cell[:]), np.transpose(self.P)))) / a, 6))
         print('Reciprocal:')
-        print(np.round(self.blat.tocell().reciprocal()[:] * self.arguments['parameters']['a'], 6))
+        print(np.round(self.blat.tocell().reciprocal()[:] * a, 6))
+        print('Reciprocal QE -> SC:')
+        print(np.round(np.matmul(self.P, np.matmul(self.cell.reciprocal()[:], np.transpose(self.U))) * a, 6))
         print('Cartesian:')
-        print(np.round(self.blat_bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
+        print(np.round(self.blat_bandpath.cartesian_kpts() * a, 6))
         print('Fractional:')
         print(self.blat_bandpath.kpts)
 
         print('\n### QE Cell ###')
         print(self.cell.cellpar())
         print('Direct:')
-        print(np.round(self.cell[:] / self.arguments['parameters']['a'], 6))
+        print(np.round(self.cell[:] / a, 6))
         print('Reciprocal:')
-        print(np.round(self.cell.reciprocal()[:] * self.arguments['parameters']['a'], 6))
+        print(np.round(self.cell.reciprocal()[:] * a, 6))
         print('Cartesian:')
-        print(np.round(self.bandpath.cartesian_kpts() * self.arguments['parameters']['a'], 6))
+        print(np.round(self.bandpath.cartesian_kpts() * a, 6))
+        print('Cartesian SC -> QE:')
+        print(np.round(np.einsum('ik,kj->ij', self.blat_bandpath.cartesian_kpts(), self.U) * a, 6))
         print('Fractional:')
         print(np.round(self.bandpath.kpts, 6))
-        print('Transformed:')
-        print(np.round(np.einsum('li,ji->lj', self.bandpath.cartesian_kpts(), self.S) * self.arguments['parameters']['a'], 6))
-
 
 
     def change_of_basis_matrices(self):
@@ -346,12 +385,10 @@ class BrillouinZone():
 
         Bqe = self.cell.reciprocal()[:]
         Bsc = self.blat.tocell().reciprocal()[:]
-        Bsc_inv = np.linalg.inv(Bsc)
 
         ibrav = self.arguments['ibrav']
         variant = self.blat.variant
 
-        # R != I
         if ibrav in self.selected_points_qe and variant in self.selected_points_qe[ibrav]:
             fcoords_qe = self.selected_points_qe[ibrav][variant]
             fcoords_sc = self.blat.get_special_points()
@@ -367,30 +404,33 @@ class BrillouinZone():
             print(f"det(Kqe) = {np.linalg.det(Kqe)}")
             print(f"det(Ksc) = {np.linalg.det(Ksc)}")
 
-            R = np.matmul(Fsc_inv, Fqe)
-            S = np.matmul(Bsc_inv, np.matmul(R, Bqe))
-        # R = I
+            P = np.matmul(Fsc_inv, Fqe)
+            U = np.matmul(np.transpose(Bsc), np.linalg.inv(np.transpose(np.matmul(P, Bqe))))
         else:
-            R = np.eye(3)
-            S = np.matmul(Bsc_inv, Bqe)
+            P = np.eye(3)
+            U = np.eye(3)
 
-        C = np.linalg.inv(R)
+        print('P:')
+        print(np.round(P, 6))
+        print(f"det(P) = {np.linalg.det(P)}")
 
-        print(f"R = {np.round(R, 6)}")
-        print(f"S = {np.round(S, 6)}")
-        print(f"det(S) = {np.linalg.det(S)}")
-        print(f"C = {np.round(C, 6)}")
+        print('U:')
+        print(np.round(U, 6))
+        print(f"det(U) = {np.linalg.det(U)}")
 
-        return S, R
+        print('Angles:')
+        print(np.round(np.degrees(np.arccos(np.round(U, 4))), 3))
+
+        return P, U
 
 
 
     def transformed_special_points(self):
-        self.S, R = self.change_of_basis_matrices()
+        self.P, self.U = self.change_of_basis_matrices()
 
         special_points = {}
         for label, coords in self.blat.get_special_points().items():
-            special_points[label] = np.matmul(coords, R)
+            special_points[label] = np.matmul(coords, self.P)
 
         return special_points
 
