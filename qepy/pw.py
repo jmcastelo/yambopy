@@ -264,7 +264,7 @@ class PwIn(object):
         elif units == "angstrom":
             scale_out=au2ang
         elif units == "crystal":
-            atoms_arr = car_red(atoms, np.array(self.cell_parameters))
+            atoms_arr = car_red(self.atoms, np.array(self.cell_parameters))
 
         atoms_arr*=scale_out # transform in bohr
         atoms_string=""
@@ -287,7 +287,7 @@ class PwIn(object):
         self.Utype   = Utype
 
     def set_atypes(self,atypes):
-        """"
+        """
         Set the atom types.
 
         Example:
@@ -326,10 +326,23 @@ class PwIn(object):
         if nscf_kpoints: self.set_kpoints(nscf_kpoints) 
         return self
 
-    def set_bands(self,nbnd,path_kpoints=None,conv_thr=1e-8,
-                 diago_full_acc=True,force_symmorphic=True):
+    #def set_bands(self,nbnd,path_kpoints=None,conv_thr=1e-8,
+    #             diago_full_acc=True,force_symmorphic=True):
+    #    """
+    #    set the calculation to be nscf
+    #    """
+    #    self.control['calculation'] = "'bands'"
+    #    self.electrons['conv_thr'] = conv_thr
+    #    self.system['nbnd'] = nbnd
+    #    self.electrons['diago_full_acc'] = fortran_bool(diago_full_acc)
+    #    self.system['force_symmorphic'] = fortran_bool(force_symmorphic)
+    #    self.ktype = 'crystal'
+    #    if path_kpoints: self.set_path(path_kpoints)
+    #    return self
+
+    def set_bands(self, nbnd, path_kpoints = None, conv_thr = 1e-8, diago_full_acc = True, force_symmorphic = True):
         """
-        set the calculation to be nscf
+        Set the calculation to be 'bands'
         """
         self.control['calculation'] = "'bands'"
         self.electrons['conv_thr'] = conv_thr
@@ -337,7 +350,10 @@ class PwIn(object):
         self.electrons['diago_full_acc'] = fortran_bool(diago_full_acc)
         self.system['force_symmorphic'] = fortran_bool(force_symmorphic)
         self.ktype = 'crystal'
-        if path_kpoints: self.set_path(path_kpoints) 
+
+        if path_kpoints is not None:
+            self.klist = path_kpoints
+
         return self
 
     def set_relax(self,cell_dofree=None):
@@ -449,8 +465,11 @@ class PwIn(object):
             masses.append(mass)
         return masses
 
-    def set_path(self,path):
-        self.klist = path.get_klist()
+    #def set_path(self,path):
+    #    self.klist = path.get_klist()
+
+    #def set_path(self, brillouin_zone):
+    #    self.klist = brillouin_zone.kpoints(qe = True);
 
     def get_cell(self):
         """ Get the lattice parameters, postions of the atoms and chemical symbols

@@ -1,7 +1,11 @@
+import numpy as np
 from math import sqrt, cos, sin, radians, pi
 from ase.cell import Cell
 from ase.dft.kpoints import parse_path_string
-import numpy as np
+from itertools import product
+
+from yambopy.kpoints import expand_kpoints
+from yambopy.lattice import red_car, isbetween
 
 
 
@@ -150,7 +154,7 @@ class BrillouinZone():
         }
     }
 
-    def __init__(self, ibrav, parameters = {}, path = None, extra_points = None):
+    def __init__(self, ibrav, parameters = {}, path = None, extra_points = None, npoints = None, density = None):
         """
         Initializes the Brillouin zone of a selected lattice type, with given required parameters and path.
         """
@@ -192,6 +196,8 @@ class BrillouinZone():
         alpha = parameters.get('alpha', None)
         beta = parameters.get('beta', None)
         gamma = parameters.get('gamma', None)
+
+        self.parameters = parameters
 
         # Set lattice vectors as QE does
 
@@ -318,8 +324,11 @@ class BrillouinZone():
         if path == None:
             path = self.blat.special_path
 
-        self.bandpath = self.cell.bandpath(path = path, npoints = 0, special_points = self.special_points)
-        self.blat_bandpath = self.blat.bandpath(path = path, npoints = 0)
+        if npoints is None and density is None:
+            npoints = 0
+
+        self.bandpath = self.cell.bandpath(path = path, special_points = self.special_points, npoints = npoints, density = density)
+        self.blat_bandpath = self.blat.bandpath(path = path, npoints = npoints, density = density)
 
 
 
@@ -436,21 +445,31 @@ class BrillouinZone():
 
 
 
-    def kpoints(self, coords = 'red'):
+    def kpoints(self, coords = 'red', qe = False):
         """
         Returns ndarray of the k-points of the path (no interpolation made).
 
         Input:
-            coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
+            * coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
+            * qe: True for output in Quantum ESPRESSO's format [ [Kx, Ky, Kz, 1], ... ]
 
         Output:
-            ndarray containing the k-points of the path in the selected coordinates.
+            * ndarray containing the k-points of the path in the selected coordinates.
         """
 
+        # To get path with Quantum ESPRESSO's format:
+        #   Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
+
         if coords == 'red':
-            return self.bandpath.kpts
+            if qe:
+                return np.pad(self.bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
+            else:
+                return self.bandpath.kpts
         elif coords == 'car':
-            return self.bandpath.cartesian_kpts()
+            if qe:
+                return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+            else:
+                return self.bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -461,13 +480,13 @@ class BrillouinZone():
         Returns ndarray of interpolated k-points along the path.
 
         Input:
-            coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
-            npoints (int): Total number of k-points to interpolate. At least one point is added for each special point in the path.
-            density (float): Density of k-points along the path in Angstron**-1.
-            qe: True for output in Quantum ESPRESSO's format [ [Kx, Ky, Kz, 1], ... ]
+        * coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
+        * npoints (int): Total number of k-points to interpolate. At least one point is added for each special point in the path.
+        * density (float): Density of k-points along the path in Angstron**-1. (Either npoints or density may be specified, not both.)
+        * qe: True for output in Quantum ESPRESSO's format [ [Kx, Ky, Kz, 1], ... ]
 
         Output:
-            ndarray containing the interpolated k-points along the path in the selected coordinates and format.
+        * ndarray containing the interpolated k-points along the path in the selected coordinates and format.
         """
 
         interpolated_bandpath = self.bandpath.interpolate(npoints = npoints, density = density)
@@ -494,20 +513,139 @@ class BrillouinZone():
         Get an x-axis to be used when plotting a band structure.
 
         The first of the returned lists is a list of cumulative distances between k-points.
-        The second is list of x-coordinates of the special points (can be used as xticks).
+        The second is a list of x-coordinates of the special points (can be used as xticks).
         The third is a list of the special points as strings (can be used as xticklabels).
         """
+
         return self.bandpath.get_linear_kpoint_axis()
 
 
 
-    def kpoints_piecewise(self, coords = 'red'):
+    def special_points_distances(self, merge_sections = False):
+        car_spoints_piecewise = self.special_points_piecewise(coords = 'car')
+
+        distances = []
+        distance = 0
+
+        if merge_sections:
+            distances.append(distance)
+
+        for section in car_spoints_piecewise:
+            if not merge_sections:
+                distances.append(distance)
+            for nk in range(len(section) - 1):
+                distance += np.linalg.norm(section[nk + 1] - section[nk])
+                distances.append(distance)
+
+        return np.array(distances)
+
+
+
+    def kpoints_interpolated_distances(self):
+
+        #interpolated_bandpath = self.bandpath.interpolate(npoints = npoints, density = density)
+
+        return self.bandpath.get_linear_kpoint_axis()[0]
+
+
+    def path_labels_list(self, merge_sections = False):
+        labels_sections = parse_path_string(self.bandpath.path)
+
+        labels_list = [label for labels in labels_sections for label in labels]
+
+        if merge_sections:
+            boundaries = [len(labels) for labels in labels_sections]
+            boundaries.pop()
+
+            if len(boundaries) > 0:
+                for k in boundaries:
+                    labels_list[k - 1] = labels_list[k - 1] + " - " + labels_list[k]
+                for k in boundaries:
+                    labels_list.pop(k)
+
+        return labels_list
+
+
+
+    @property
+    def path_labels(self):
+        return parse_path_string(self.bandpath.path)
+
+
+
+    def special_points_piecewise(self, coords = 'red'):
         sections = parse_path_string(self.bandpath.path)
 
         if coords == 'red':
             return [[self.special_points[label] for label in section] for section in sections]
         elif coords == 'car':
             reciprocal_cell = self.cell.reciprocal()
-            return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+            return [[2 * pi * reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
         else:
             raise ValueError(f"coords: {coords} not supported.")
+
+
+
+    def get_collinear_kpoints(self, kpoints_car, sym_car = None, debug = False):
+
+        rlat = self.cell.reciprocal()[:] * (2 * pi)
+
+        if sym_car is None:
+            kpoints_indices = list(range(len(kpoints_car)))
+        else:
+            _, kpoints_indices, _, kpoints_car = expand_kpoints(kpoints_car, sym_car, rlat)
+
+        kpoints_path_car = self.kpoints_piecewise('car')
+        kpoints_path_distances = self.kpoints_distances()
+
+        print(kpoints_path_car)
+        print(kpoints_path_distances)
+
+        collinear_kpoints = []
+        collinear_indices = []
+        collinear_distances = []
+
+        kdist = 0
+        for section in kpoints_path_car:
+            for k in range(len(section) - 1):
+
+                collinear_kpoints_data = {}
+
+                start_kpoint = section[k]
+                end_kpoint = section[k + 1]
+
+                for x, y, z in product(list(range(-1, 2)), list(range(-1, 2)), list(range(-1, 2))):
+
+                    shift = red_car([np.array([x, y, z])], rlat)[0]
+
+                    for index, kpoint in zip(kpoints_indices, kpoints_car):
+
+                        kpoint_shift = kpoint + shift
+
+                        if isbetween(start_kpoint, end_kpoint, kpoint_shift):
+                            key = tuple([np.round(kpt, 4) for kpt in kpoint_shift])
+                            distance = np.linalg.norm(start_kpoint - kpoint_shift)
+                            distance_within_path = kpoints_path_distances[kdist] + distance
+                            value = [index, distance, kpoint_shift, distance_within_path]
+                            collinear_kpoints_data[key] = value
+
+                kdist += 1
+
+                collinear_kpoints_data = sorted(list(collinear_kpoints_data.values()), key = lambda i: i[1])
+
+                for index, distance, kpoint_shift, distance_within_path in collinear_kpoints_data:
+
+                    collinear_indices.append(index)
+                    collinear_kpoints.append(kpoint_shift)
+                    collinear_distances.append(distance_within_path)
+
+                    if debug:
+                        print(("%12.8lf " * 3)%tuple(kpoint_shift), index, distance, distance_within_path)
+
+        return np.array(collinear_kpoints), np.array(collinear_indices), np.array(collinear_distances)
+
+
+
+    @property
+    def rlattice(self):
+        return self.cell.reciprocal()[:] * (2 * pi)

@@ -399,6 +399,45 @@ class YamboElectronsDB():
 
         return ax
 
+    def plot_bandstructure_ax(self, ax, bz, bandmin = None, bandmax = None, add_indexes = False, **kwargs):
+        """
+        Plot this bandstructure on Matpltolib ax
+        """
+        bands_kpoints, bands_indexes, bands_distances = bz.get_collinear_kpoints(self.kpoints_full, debug = True)
+        #path_kpoint_distances, path_kpoint_x_coords, path_kpoint_labels = bz.linear_kpoint_axis()
+
+        path_kpoint_distances = bz.kpoints_distances()
+        path_kpoint_labels = bz.path_labels_list()
+
+        #self.get_fermi()
+
+        #calculate distances
+        #bands_distances = [0]
+        #distance = 0
+        #for nk in range(1, len(bands_kpoints)):
+        #    distance += np.linalg.norm(bands_kpoints[nk] - bands_kpoints[nk - 1])
+        #    bands_distances.append(distance)
+
+        for xcoord in path_kpoint_distances:
+            ax.axvline(xcoord, color = 'k')
+
+        #plot bands
+        if self.spin == 2:
+           color = kwargs.pop('c', 'red')
+           ax.plot(bands_distances, self.eigenvalues[0, bands_indexes, bandmin:bandmax], c = color, **kwargs)
+           color = kwargs.pop('c', 'blue')
+           ax.plot(bands_distances, self.eigenvalues[1, bands_indexes, bandmin:bandmax], c = color, **kwargs)
+        else:
+            color = kwargs.pop('c', 'red')
+            ax.plot(bands_distances, self.eigenvalues[0, bands_indexes, bandmin:bandmax], c = color, **kwargs)
+
+        ax.set_xlim(0, max(path_kpoint_distances))
+
+        ax.set_xticks(path_kpoint_distances)
+        ax.set_xticklabels(path_kpoint_labels)
+
+        return ax
+
     ##
     ## DOS and JDOS
     ##

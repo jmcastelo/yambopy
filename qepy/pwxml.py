@@ -371,6 +371,60 @@ class PwXML():
         if xlim: ax.set_xlim(xlim)
         if ylim: ax.set_ylim(ylim)
 
+    def plot_eigen_ax2(self, ax, bz, xlim = (), ylim = (), color = 'r', **kwargs):
+
+        path_kpoint_distances = bz.kpoints_distances()
+        path_kpoint_labels = bz.path_labels_list()
+
+        for xcoord in path_kpoint_distances:
+            ax.axvline(xcoord, color = 'k')
+
+        ax.set_xticks(path_kpoint_distances)
+        ax.set_xticklabels(path_kpoint_labels)
+
+        ax.set_xlim(0, max(path_kpoint_distances))
+
+        ax.set_ylabel('E (eV)')
+
+        ls = kwargs.pop('ls','solid')
+        lw = kwargs.pop('lw',1)
+        y_offset = kwargs.pop('y_offset',0.0)
+        #get kpoint_dists
+        kpoints_dists = calculate_distances(self.kpoints)
+        ticks, labels = list(zip(*path_kpoints))
+        ax.set_xticks([kpoints_dists[t] for t in ticks])
+        ax.set_xticklabels(labels)
+        ax.set_xlim(kpoints_dists[0],kpoints_dists[-1])
+
+        #plot vertical lines
+        for t in ticks:
+            ax.axvline(kpoints_dists[t],c='k',lw=2)
+        ax.axhline(0,c='k')
+
+        #plot bands
+
+        if self.lsda:
+           eigen1 = np.array(self.eigen1)
+
+           for ib in range(self.nbands_up):
+               ax.plot(kpoints_dists,eigen1[:,ib]                + y_offset, '%s-'%color, lw=lw, zorder=1,label='spin-up') # spin-up
+               ax.plot(kpoints_dists,eigen1[:,ib+self.nbands_up] + y_offset, 'b-', lw=lw, zorder=1,label='spin-down') # spin-down
+
+           import matplotlib.pyplot as plt
+           handles, labels = plt.gca().get_legend_handles_labels()
+           by_label = dict(zip(labels, handles))
+           plt.legend(by_label.values(), by_label.keys())
+
+        # Case: Non spin polarization
+        else:
+           eigen1 = np.array(self.eigen1)
+
+           for ib in range(self.nbands):
+               ax.plot(kpoints_dists,eigen1[:,ib] + y_offset, color=color,linestyle=ls , lw=lw, zorder =1)
+
+        #plot options
+        if xlim: ax.set_xlim(xlim)
+        if ylim: ax.set_ylim(ylim)
      
     #def plot_eigen_spin_ax(self,ax,path_kpoints=[],xlim=(),ylim=(),spin_proj=None):
     def plot_eigen_spin_ax(self,ax,path_kpoints=[],xlim=(),ylim=(),spin_proj=False,spin_folder='.'):
