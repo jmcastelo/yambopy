@@ -467,9 +467,9 @@ class BrillouinZone():
                 return self.bandpath.kpts
         elif coords == 'car':
             if qe:
-                return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad((2 * pi) * self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                return self.bandpath.cartesian_kpts()
+                return (2 * pi) * self.bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -501,9 +501,9 @@ class BrillouinZone():
                 return interpolated_bandpath.kpts
         elif coords == 'car':
             if qe:
-                return np.pad(interpolated_bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad((2 * pi) * interpolated_bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                return interpolated_bandpath.cartesian_kpts()
+                return (2 * pi) * interpolated_bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -522,7 +522,7 @@ class BrillouinZone():
 
 
     def special_points_distances(self, merge_sections = False):
-        car_spoints_piecewise = self.special_points_piecewise(coords = 'car')
+        spoints_piecewise = self.special_points_piecewise(coords = 'car')
 
         distances = []
         distance = 0
@@ -530,7 +530,7 @@ class BrillouinZone():
         if merge_sections:
             distances.append(distance)
 
-        for section in car_spoints_piecewise:
+        for section in spoints_piecewise:
             if not merge_sections:
                 distances.append(distance)
             for nk in range(len(section) - 1):
@@ -541,11 +541,34 @@ class BrillouinZone():
 
 
 
-    def kpoints_interpolated_distances(self):
+    def kpoints_distances(self):
+        spoints_piecewise = self.special_points_piecewise(coords = 'car')
+        kpoints = self.kpoints('car')
 
-        #interpolated_bandpath = self.bandpath.interpolate(npoints = npoints, density = density)
+        spoints_distance = 0
+        kpoints_distance = 0
 
-        return self.bandpath.get_linear_kpoint_axis()[0]
+        kpoints_distances = [0]
+
+        nk = 0
+
+        for section in spoints_piecewise:
+
+            for ns in range(len(section) - 1):
+                spoints_distance += np.linalg.norm(section[ns + 1] - section[ns])
+
+            while nk < (len(kpoints) - 1):
+                distance = np.linalg.norm(kpoints[nk + 1] - kpoints[nk])
+                nk += 1
+
+                if kpoints_distance + distance <= np.round(spoints_distance, 10):
+                    kpoints_distance += distance
+                    kpoints_distances.append(kpoints_distance)
+                else:
+                    break
+
+        return np.array(kpoints_distances)
+
 
 
     def path_labels_list(self, merge_sections = False):
@@ -567,7 +590,6 @@ class BrillouinZone():
 
 
 
-    @property
     def path_labels(self):
         return parse_path_string(self.bandpath.path)
 
@@ -580,7 +602,7 @@ class BrillouinZone():
             return [[self.special_points[label] for label in section] for section in sections]
         elif coords == 'car':
             reciprocal_cell = self.cell.reciprocal()
-            return [[2 * pi * reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+            return [[(2 * pi) * reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -595,18 +617,15 @@ class BrillouinZone():
         else:
             _, kpoints_indices, _, kpoints_car = expand_kpoints(kpoints_car, sym_car, rlat)
 
-        kpoints_path_car = self.kpoints_piecewise('car')
-        kpoints_path_distances = self.kpoints_distances()
-
-        print(kpoints_path_car)
-        print(kpoints_path_distances)
+        spoints_car = self.special_points_piecewise('car')
+        spoints_distances = self.special_points_distances()
 
         collinear_kpoints = []
         collinear_indices = []
         collinear_distances = []
 
         kdist = 0
-        for section in kpoints_path_car:
+        for section in spoints_car:
             for k in range(len(section) - 1):
 
                 collinear_kpoints_data = {}
@@ -625,7 +644,7 @@ class BrillouinZone():
                         if isbetween(start_kpoint, end_kpoint, kpoint_shift):
                             key = tuple([np.round(kpt, 4) for kpt in kpoint_shift])
                             distance = np.linalg.norm(start_kpoint - kpoint_shift)
-                            distance_within_path = kpoints_path_distances[kdist] + distance
+                            distance_within_path = spoints_distances[kdist] + distance
                             value = [index, distance, kpoint_shift, distance_within_path]
                             collinear_kpoints_data[key] = value
 
