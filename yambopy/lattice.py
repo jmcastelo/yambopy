@@ -68,7 +68,7 @@ def vol_lat(lat):
     a1,a2,a3 = np.array(lat)
     return np.dot(a1,np.cross(a2,a3))
 
-def rec_lat(lat):
+def rec_lat_bak(lat):
     """
     Calculate the reciprocal lattice vectors
     """
@@ -78,6 +78,17 @@ def rec_lat(lat):
     b2 = np.cross(a3,a1)/v
     b3 = np.cross(a1,a2)/v
     return np.array([b1,b2,b3])
+
+def rec_lat(lat):
+    """
+    Calculate the reciprocal lattice vectors
+    """
+    v = vol_lat(lat)
+    a1, a2, a3 = np.array(lat)
+    b1 = 2 * np.pi * np.cross(a2, a3) / v
+    b2 = 2 * np.pi * np.cross(a3, a1) / v
+    b3 = 2 * np.pi * np.cross(a1, a2) / v
+    return np.array([b1 ,b2, b3])
 
 def replicate_red_kmesh(kmesh,repx=list(range(1)),repy=list(range(1)),repz=list(range(1))):
     """
