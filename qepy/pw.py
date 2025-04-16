@@ -469,7 +469,7 @@ class PwIn(object):
         self.klist = path.get_klist()
 
     def set_path(self, bz):
-        self.klist = bz.kpoints(coords = 'red', qe = True);
+        self.klist = bz.kpoints(coords = 'red', qe = True)
 
     def get_cell(self):
         """ Get the lattice parameters, postions of the atoms and chemical symbols

@@ -185,7 +185,9 @@ class BrillouinZone():
             'ibrav': ibrav,
             'parameters' : parameters,
             'path': path,
-            'extra_points': extra_points
+            'extra_points': extra_points,
+            'npoints': npoints,
+            'density': density
         }
 
         # Set parameters
@@ -317,9 +319,11 @@ class BrillouinZone():
         # Construct path in the BZ consisting only of the special points, i.e. no interpolation made
 
         self.special_points = self.transformed_special_points()
+        self.blat_special_points = self.blat.get_special_points()
 
         if isinstance(extra_points, dict):
             self.special_points = extra_points | self.special_points
+            self.blat_special_points = extra_points | self.blat_special_points
 
         if path == None:
             path = self.blat.special_path
@@ -328,7 +332,7 @@ class BrillouinZone():
             npoints = 0
 
         self.bandpath = self.cell.bandpath(path = path, special_points = self.special_points, npoints = npoints, density = density)
-        self.blat_bandpath = self.blat.bandpath(path = path, npoints = npoints, density = density)
+        self.blat_bandpath = self.blat.bandpath(path = path, special_points = self.blat_special_points, npoints = npoints, density = density)
 
 
 
@@ -347,7 +351,7 @@ class BrillouinZone():
         Construct a new object of this class, given a dictionary with all arguments needed
         """
 
-        return cls(ibrav = args['ibrav'], parameters = args['parameters'], path = args['path'], extra_points = args['extra_points'])
+        return cls(ibrav = args['ibrav'], parameters = args['parameters'], path = args['path'], extra_points = args['extra_points'], npoints = args['npoints'], density = args['density'])
 
 
 
@@ -467,9 +471,9 @@ class BrillouinZone():
                 return self.bandpath.kpts
         elif coords == 'car':
             if qe:
-                return np.pad((2 * np.pi) * self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                return (2 * np.pi) * self.bandpath.cartesian_kpts()
+                return self.bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -501,9 +505,9 @@ class BrillouinZone():
                 return interpolated_bandpath.kpts
         elif coords == 'car':
             if qe:
-                return np.pad((2 * np.pi) * interpolated_bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(interpolated_bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
             else:
-                return (2 *np. pi) * interpolated_bandpath.cartesian_kpts()
+                return interpolated_bandpath.cartesian_kpts()
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -561,7 +565,7 @@ class BrillouinZone():
                 distance = np.linalg.norm(kpoints[nk + 1] - kpoints[nk])
                 nk += 1
 
-                if kpoints_distance + distance <= np.round(spoints_distance, 10):
+                if kpoints_distance + distance <= np.round(spoints_distance, 8):
                     kpoints_distance += distance
                     kpoints_distances.append(kpoints_distance)
                 else:
@@ -604,7 +608,7 @@ class BrillouinZone():
             return [[self.special_points[label] for label in section] for section in sections]
         elif coords == 'car':
             reciprocal_cell = self.cell.reciprocal()
-            return [[(2 * np.pi) * reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+            return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -612,7 +616,7 @@ class BrillouinZone():
 
     def get_collinear_kpoints(self, kpoints_car, sym_car = None, debug = False):
 
-        rlat = (2 * np.pi) * self.cell.reciprocal()[:]
+        rlat = self.cell.reciprocal()[:]
 
         if sym_car is None:
             kpoints_indices = list(range(len(kpoints_car)))
@@ -669,4 +673,4 @@ class BrillouinZone():
 
     @property
     def rlattice(self):
-        return self.cell.reciprocal()[:] * (2 * np.pi)
+        return self.cell.reciprocal()[:]

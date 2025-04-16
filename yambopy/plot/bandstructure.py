@@ -6,7 +6,8 @@
 import numpy as np
 from yambopy.tools.string import marquee
 from yambopy.plot.plotting import add_fig_kwargs
-from qepy.lattice import Path
+#from qepy.lattice import Path
+from yambopy import BrillouinZone
 
 def exagerate_differences(ks_ebandsc,ks_ebandsp,ks_ebandsm,d=0.01,exagerate=5):
     """
@@ -77,13 +78,13 @@ class YambopyBandStructure():
     """
     _colormap = 'rainbow'
 
-    def __init__(self,bands,kpoints,kpath=None,fermie=0,weights=None,spin_proj=None,**kwargs):
+    def __init__(self,bands,kpoints,bz=None,fermie=0,weights=None,spin_proj=None,**kwargs):
         self.bands = np.array(bands)
         self.weights = np.array(weights)     if weights   is not None else None
         self.spin_proj = np.array(spin_proj) if spin_proj is not None else None 
         self.kpoints = np.array(kpoints)
         self.kwargs = kwargs
-        self.kpath = kpath
+        self.bz = bz
         self.fermie = fermie
         self._xlim = None
         self._ylim = None
@@ -110,8 +111,8 @@ class YambopyBandStructure():
 
     @classmethod
     def from_dict(cls,d):
-        path = Path.from_dict(d['kpath'])
-        instance = cls(d['bands'],d['kpoints'],kpath=path,
+        bz = BrillouinZone.from_dict(d['bz'])
+        instance = cls(d['bands'],d['kpoints'],bz=bz,
                        fermie=d['fermie'],weights=d['weights'],**d['kwargs'])
         instance._xlim = d['_xlim']
         instance._ylim = d['_ylim']
@@ -131,7 +132,7 @@ class YambopyBandStructure():
               'weights': self.weights.tolist() if self.weights is not None else None,
               'kpoints': self.kpoints.tolist(),
               'kwargs': self.kwargs,
-              'kpath': self.kpath.as_dict() if self.kpath is not None else None,
+              'bz': self.bz.as_dict() if self.bz is not None else None,
               'fermie': self.fermie,
               '_xlim': self._xlim,
               '_ylim': self._ylim }
@@ -206,14 +207,16 @@ class YambopyBandStructure():
         Add vertical lines at the positions of the high-symmetry k-points
         I did a modification that I don't like much. To be corrected
         """
-        if self.kpath is None:
+        if self.bz is None:
             ax.xaxis.set_ticks([])
-            return 
-        for kpoint, klabel, distance in self.kpath:
-            ax.axvline(distance,c='k',ls='--',lw=0.5)
-        ax.axvline(0.0,c='k',ls='-',lw=0.0)
-        ax.axvline(distance,c='k',ls='-',lw=0.0)
-        self.kpath.set_xticks(ax)
+            return
+
+        for distance in self.bz.special_points_distances(True):
+            ax.axvline(distance, c = 'k', ls = '--', lw = 0.5)
+
+        ax.set_xticks(self.bz.special_points_distances(True))
+
+        ax.set_xticklabels(self.bz.path_labels_list(True))
 
     def plot_ax(self,ax,xlim=None,ylim=None,size=1.,ylabel='$\epsilon_{n\mathbf{k}}$ [eV]', alpha_weights=0.5,legend=False,**kwargs):
         """Receive an intance of matplotlib axes and add the plot"""
@@ -293,31 +296,31 @@ class YambopyBandStructure():
         """Add the bands of two systems together"""
         #add some consistency check
         bands = self.bands + y.bands
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie+y.fermie,**self.kwargs)
+        return YambopyBandStructure(bands,self.kpoints,bz=self.bz,fermie=self.fermie+y.fermie,**self.kwargs)
  
     def __sub__(self,y):
         """Subtract the bands of two systems together"""
         #add some consistency check
         bands = self.bands - y.bands
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie-y.fermie,**self.kwargs)
+        return YambopyBandStructure(bands,self.kpoints,bz=self.bz,fermie=self.fermie-y.fermie,**self.kwargs)
 
     def __mul__(self,y):
         """Scale the bands of the system"""
         #add some consistency check
         bands = self.bands*y
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie*y,**self.kwargs)
+        return YambopyBandStructure(bands,self.kpoints,bz=self.bz,fermie=self.fermie*y,**self.kwargs)
 
     def __truediv__(self,y):
         """Scale the bands of the system"""
         #add some consistency check
         bands = self.bands/y
-        return YambopyBandStructure(bands,self.kpoints,kpath=self.kpath,fermie=self.fermie/y,**self.kwargs)
+        return YambopyBandStructure(bands,self.kpoints,bz=self.bz,fermie=self.fermie/y,**self.kwargs)
     
     def __str__(self):
         lines = []; app = lines.append
         app('nkpoints: %d'%self.nkpoints)
         app('nbands: %d'%self.nbands)
-        app('has kpath: %s'%hasattr(self,'kpath'))
+        app('has bz: %s'%hasattr(self,'bz'))
         return "\n".join(lines)
 
 class YambopyBandStructureList():
