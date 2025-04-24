@@ -325,7 +325,7 @@ class BrillouinZone():
             self.special_points = extra_points | self.special_points
             self.blat_special_points = extra_points | self.blat_special_points
 
-        if path == None:
+        if path is None:
             path = self.blat.special_path
 
         if npoints is None and density is None:
@@ -550,27 +550,21 @@ class BrillouinZone():
         kpoints = self.kpoints('car')
 
         spoints_distance = 0
-        kpoints_distance = 0
-
-        kpoints_distances = [0]
+        kpoints_distances = []
 
         nk = 0
 
-        for section in spoints_piecewise:
-
-            for ns in range(len(section) - 1):
-                spoints_distance += np.linalg.norm(section[ns + 1] - section[ns])
-
-            while nk < (len(kpoints) - 1):
-                distance = np.linalg.norm(kpoints[nk + 1] - kpoints[nk])
-                nk += 1
-
-                if kpoints_distance + distance <= np.round(spoints_distance, 8):
-                    kpoints_distance += distance
-                    kpoints_distances.append(kpoints_distance)
-                else:
-                    kpoints_distances.append(kpoints_distance)
-                    break
+        for spoints in spoints_piecewise:
+            for ns in range(len(spoints) - 1):
+                while nk < len(kpoints):
+                    if np.allclose(kpoints[nk], spoints[ns + 1]):
+                        spoints_distance += np.linalg.norm(spoints[ns + 1] - spoints[ns])
+                        kpoints_distances.append(spoints_distance)
+                        nk += 1
+                        break
+                    if isbetween(spoints[ns], spoints[ns + 1], kpoints[nk]):
+                        kpoints_distances.append(spoints_distance + np.linalg.norm(kpoints[nk] - spoints[ns]))
+                        nk += 1
 
         return np.array(kpoints_distances)
 
