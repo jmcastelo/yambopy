@@ -4,6 +4,8 @@ from ase.cell import Cell
 from ase.dft.kpoints import parse_path_string
 from itertools import product
 
+from scipy.stats import reciprocal
+
 from yambopy.kpoints import expand_kpoints
 from yambopy.lattice import red_car, isbetween
 
@@ -451,7 +453,7 @@ class BrillouinZone():
 
     def kpoints(self, coords = 'red', qe = False):
         """
-        Returns ndarray of the k-points of the path (no interpolation made).
+        Returns ndarray of the k-points of the path.
 
         Input:
             * coords: 'red' for reduced (default), or 'car' for Cartesian coordinates.
@@ -526,7 +528,7 @@ class BrillouinZone():
 
 
     def special_points_distances(self, merge_sections = False):
-        spoints_piecewise = self.special_points_piecewise(coords = 'car')
+        spoints_piecewise = self.special_kpoints('car')
 
         distances = []
         distance = 0
@@ -546,7 +548,7 @@ class BrillouinZone():
 
 
     def kpoints_distances(self):
-        spoints_piecewise = self.special_points_piecewise(coords = 'car')
+        spoints_piecewise = self.special_kpoints('car')
         kpoints = self.kpoints('car')
 
         spoints_distance = 0
@@ -595,21 +597,26 @@ class BrillouinZone():
 
 
 
-    def special_points_piecewise(self, coords = 'red'):
+    def special_kpoints(self, coords = 'red', merge_sections = False):
         sections = parse_path_string(self.bandpath.path)
 
         if coords == 'red':
-            return [[self.special_points[label] for label in section] for section in sections]
+            if merge_sections:
+                return np.array([self.special_points[label] for section in sections for label in section])
+            else:
+                return [[self.special_points[label] for label in section] for section in sections]
         elif coords == 'car':
             reciprocal_cell = self.cell.reciprocal()
-            return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+            if merge_sections:
+                return np.array([reciprocal_cell.cartesian_positions(self.special_points[label]) for section in sections for label in section])
+            else:
+                return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
 
 
     def get_collinear_kpoints(self, kpoints_car, sym_car = None, debug = False):
-
         rlat = self.cell.reciprocal()[:]
 
         if sym_car is None:
@@ -617,7 +624,7 @@ class BrillouinZone():
         else:
             _, kpoints_indices, _, kpoints_car = expand_kpoints(kpoints_car, sym_car, rlat)
 
-        spoints_car = self.special_points_piecewise('car')
+        spoints_car = self.special_kpoints('car')
         spoints_distances = self.special_points_distances()
 
         collinear_kpoints = []
