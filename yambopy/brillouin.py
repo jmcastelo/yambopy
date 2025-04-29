@@ -578,13 +578,14 @@ class BrillouinZone():
         labels_list = [label for labels in labels_sections for label in labels]
 
         if merge_sections:
-            boundaries = [len(labels) for labels in labels_sections]
-            boundaries.pop()
+            sections_lengths = [len(labels) for labels in labels_sections]
+            sections_lengths.pop()
 
-            if len(boundaries) > 0:
+            if len(sections_lengths) > 0:
+                boundaries = np.cumsum(sections_lengths)
                 for k in boundaries:
                     labels_list[k - 1] = labels_list[k - 1] + " - " + labels_list[k]
-                for k in boundaries:
+                for k in sorted(boundaries, reverse=True):
                     labels_list.pop(k)
 
         return labels_list
