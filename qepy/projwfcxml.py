@@ -315,7 +315,7 @@ class ProjwfcXML(object):
         kpoints_dists = bz.kpoints_distances()
 
         #make K-points labels
-        ticks = bz.special_points_distances(True)
+        ticks = bz.special_kpoints_distances(True)
         labels = bz.path_labels_list(True)
 
         ax.set_xticks(ticks)

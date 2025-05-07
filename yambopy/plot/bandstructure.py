@@ -211,10 +211,10 @@ class YambopyBandStructure():
             ax.xaxis.set_ticks([])
             return
 
-        for distance in self.bz.special_points_distances(True):
+        for distance in self.bz.special_kpoints_distances(True):
             ax.axvline(distance, c = 'k', ls = '--', lw = 0.5)
 
-        ax.set_xticks(self.bz.special_points_distances(True))
+        ax.set_xticks(self.bz.special_kpoints_distances(True))
 
         ax.set_xticklabels(self.bz.path_labels_list(True))
 

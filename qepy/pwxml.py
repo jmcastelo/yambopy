@@ -373,7 +373,7 @@ class PwXML():
 
     def plot_eigen_ax(self, ax, bz, xlim = (), ylim = (), color = 'r', **kwargs):
         kpoints_distances = bz.kpoints_distances()
-        spoints_distances = bz.special_points_distances(True)
+        spoints_distances = bz.special_kpoints_distances(True)
         spoints_labels = bz.path_labels_list(True)
 
         for xcoord in spoints_distances:
