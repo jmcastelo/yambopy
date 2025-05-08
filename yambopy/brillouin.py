@@ -17,7 +17,7 @@ class BrillouinZone():
 
     In general, ASE framework (following Setyawan and Curtarolo's [2] standard) and QE may employ different direct/reciprocal basis vector conventions.
     On each convention, high-symmetry k-points (a.k.a. special k-points) may be characterized by different coordinates.
-    Special k-points are obtained from ASE framework and transformed into QE representation criterion. (TODO: Ref. to derivation of transformation)
+    Special k-points are obtained from ASE framework and transformed into QE representation criterion. (Ref. to derivation of transformation)
     Note: not all Bravais lattice indices (ibrav) are supported.
 
     References:
@@ -400,7 +400,7 @@ class BrillouinZone():
 
     def info(self, debug=False):
         """
-        Prints description of the direct and reciprocal lattices.
+        Prints description of the direct and reciprocal lattices, and tests of correctness of transformation.
         """
 
         print(f"Lattice name: {self.blat.name} ({self.blat.longname})")
@@ -413,7 +413,7 @@ class BrillouinZone():
 
         print('Special k-point reduced coordinates:')
         for label, coords in self.special_points.items():
-            print(f"\t{label}: \t{coords[0]:.4f}\t{coords[1]:.4f}\t{coords[2]:.4f}")
+            print(f"\t{label}:\t{coords[0]:.4f}\t{coords[1]:.4f}\t{coords[2]:.4f}")
 
         if debug:
             a = self.arguments['parameters']['a']
@@ -430,7 +430,18 @@ class BrillouinZone():
             sc_red_kpoints = self.blat_bandpath.kpts
             qe2sc_red_kpoints = np.einsum('ik,kj->ij', self.bandpath.kpts, np.linalg.inv(self.P))
 
-            print(len(sc_car_kpoints), len(qe2sc_car_kpoints))
+            print('\n### Transformation matrices: ASE/SC -> QE ###')
+
+            print('Reciprocal basis transformation matrix P:')
+            print(np.round(self.P, 6))
+            print(f"det(P) = {np.round(np.linalg.det(self.P), 6)}")
+
+            print('Cartesian basis transformation matrix U:')
+            print(np.round(self.U, 6))
+            print(f"det(U) = {np.round(np.linalg.det(self.U), 6)}")
+
+            print('Cartesian basis vector angles (deg):')
+            print(np.round(np.degrees(np.arccos(np.round(self.U, 4))), 3))
 
             print('\n### ASE/SC Cell ###')
 
@@ -498,7 +509,7 @@ class BrillouinZone():
 
 
 
-    def change_of_basis_matrices(self, debug=False):
+    def change_of_basis_matrices(self):
         """
         Construct change of basis matrices: ASE/SC -> QE
 
@@ -525,30 +536,11 @@ class BrillouinZone():
             Fsc = np.array([fcoords_sc[labels[0]], fcoords_sc[labels[1]], fcoords_sc[labels[2]]])
             Fsc_inv = np.linalg.inv(Fsc)
 
-            Kqe = np.matmul(Fqe, Bqe)
-            Ksc = np.matmul(Fsc, Bsc)
-
-            if debug:
-                print(f"det(Kqe) = {np.linalg.det(Kqe)}")
-                print(f"det(Ksc) = {np.linalg.det(Ksc)}")
-
             P = np.matmul(Fsc_inv, Fqe)
             U = np.matmul(np.transpose(Bsc), np.linalg.inv(np.transpose(np.matmul(P, Bqe))))
         else:
             P = np.eye(3)
             U = np.eye(3)
-
-        if debug:
-            print('P:')
-            print(np.round(P, 6))
-            print(f"det(P) = {np.linalg.det(P)}")
-
-            print('U:')
-            print(np.round(U, 6))
-            print(f"det(U) = {np.linalg.det(U)}")
-
-            print('Angles:')
-            print(np.round(np.degrees(np.arccos(np.round(U, 4))), 3))
 
         return P, U
 
