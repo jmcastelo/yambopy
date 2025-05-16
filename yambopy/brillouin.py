@@ -44,7 +44,7 @@ class BrillouinZone():
         10: ['a', 'b', 'c'],
         11: ['a', 'b', 'c'],
         12: ['a', 'b', 'c', 'gamma'],
-        #-12: ['a', 'b', 'c', 'beta'],
+        -12: ['a', 'b', 'c', 'beta'],
         #13: ['a', 'b', 'c', 'gamma'],
         #-13: ['a', 'b', 'c', 'beta'],
         #14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
@@ -157,15 +157,15 @@ class BrillouinZone():
                 'Y': [0, 1/2, 0],
                 'Z': [0, 0, 1/2]
             }
+        },
+        -12: {
+            'MCL': {
+                # 'X': [1/2, 0, 0],
+                'A': [1/2, 0, 1/2],
+                'Y': [0, 1/2, 0],
+                'Z': [0, 0, 1/2]
+            }
         }
-        # -12: {
-        #     'MCL': {
-        #         'X': [1/2, 0, 0],
-        #         'A': [1/2, 1/2, 0],
-        #         'Y': [0, 1/2, 0],
-        #         'Z': [0, 0, 1/2]
-        #     }
-        # }
     }
 
     def __init__(self, ibrav, parameters=None, path=None, extra_points=None, npoints=None, density=None):
@@ -317,10 +317,10 @@ class BrillouinZone():
                 v1 = [a, 0, 0]
                 v2 = [b * cos(radians(gamma)), b * sin(radians(gamma)), 0]
                 v3 = [0, 0, c]
-            # case -12:
-            #     v1 = [a, 0, 0]
-            #     v2 = [0, b, 0]
-            #     v3 = [c * cos(radians(beta)), 0, c * sin(radians(beta))]
+            case -12:
+                v1 = [a, 0, 0]
+                v2 = [0, b, 0]
+                v3 = [c * cos(radians(beta)), 0, c * sin(radians(beta))]
             # MCLC
             # case 13:
             #     v1 = [a / 2, 0, -c / 2]
@@ -418,30 +418,43 @@ class BrillouinZone():
         if debug:
             a = self.arguments['parameters']['a']
 
-            sc_cell = self.blat.tocell()[:] / a
-            qe2sc_cell = np.linalg.inv(np.matmul(self.U, np.matmul(np.linalg.inv(self.cell[:]), np.transpose(self.P)))) / a
+            sc_cell = self.blat.tocell()[:]
+            qe_cell = self.cell[:]
+            sc2qe_cell = np.matmul(np.transpose(self.P), np.matmul(sc_cell, self.U))
 
-            sc_reciprocal = self.blat.tocell().reciprocal()[:] * a
-            qe2sc_reciprocal = np.matmul(self.P, np.matmul(self.cell.reciprocal()[:], np.transpose(self.U))) * a
+            sc_reciprocal = self.blat.tocell().reciprocal()[:]
+            qe_reciprocal = self.cell.reciprocal()[:]
+            sc2qe_reciprocal = np.matmul(np.linalg.inv(self.P), np.matmul(sc_reciprocal, self.U))
 
-            sc_car_kpoints = self.blat_bandpath.cartesian_kpts() * a
-            qe2sc_car_kpoints = np.einsum('ik,kj->ij', self.bandpath.cartesian_kpts(), np.linalg.inv(self.U)) * a
+            qe_car_kpoints = self.bandpath.cartesian_kpts()
+            sc_car_kpoints = self.blat_bandpath.cartesian_kpts()
+            sc2qe_car_kpoints = np.einsum('ik,kj->ij', sc_car_kpoints, self.U)
 
+            qe_red_kpoints = self.bandpath.kpts
             sc_red_kpoints = self.blat_bandpath.kpts
-            qe2sc_red_kpoints = np.einsum('ik,kj->ij', self.bandpath.kpts, np.linalg.inv(self.P))
+            sc2qe_red_kpoints = np.einsum('ik,kj->ij', sc_red_kpoints, self.P)
 
             print('\n### Transformation matrices: ASE/SC -> QE ###')
-
-            print('Reciprocal basis transformation matrix P:')
-            print(np.round(self.P, 6))
-            print(f"det(P) = {np.round(np.linalg.det(self.P), 6)}")
 
             print('Cartesian basis transformation matrix U:')
             print(np.round(self.U, 6))
             print(f"det(U) = {np.round(np.linalg.det(self.U), 6)}")
 
+            if np.allclose(np.linalg.inv(self.U), np.transpose(self.U)):
+                print('Orthogonal: Yes')
+            else:
+                print('Orthogonal: No')
+                print('Inverse(U):')
+                print(np.linalg.inv(self.U))
+                print('Transpose(U):')
+                print(np.transpose(self.U))
+
             print('Cartesian basis vector angles (deg):')
             print(np.round(np.degrees(np.arccos(np.round(self.U, 4))), 3))
+
+            print('Reciprocal basis transformation matrix P:')
+            print(np.round(self.P, 6))
+            print(f"det(P) = {np.round(np.linalg.det(self.P), 6)}")
 
             print('\n### ASE/SC Cell ###')
 
@@ -451,44 +464,18 @@ class BrillouinZone():
             print(self.blat.cellpar())
 
             print('Direct:')
-            print(np.round(sc_cell, 6))
+            print(np.round(sc_cell / a, 6))
 
-            if np.allclose(sc_cell, qe2sc_cell):
-                print('Direct QE -> SC: Match')
-            else:
-                print('Direct QE -> SC: Mismatch!')
-                print(np.round(qe2sc_cell, 6))
+            print('Reciprocal (units of 2pi/a):')
+            print(np.round(sc_reciprocal * a, 6))
 
-            print('Reciprocal:')
-            print(np.round(sc_reciprocal, 6))
-
-            if np.allclose(sc_reciprocal, qe2sc_reciprocal):
-                print('Reciprocal QE -> SC: Match')
-            else:
-                print('Reciprocal QE -> SC: Mismatch!')
-                print(np.round(qe2sc_reciprocal, 6))
-
-            print('Cartesian:')
+            print('Cartesian (units of 2pi/a):')
             print(f"{len(sc_car_kpoints)} k-points")
-            print(np.round(sc_car_kpoints, 6))
-
-            if len(sc_car_kpoints) == len(qe2sc_car_kpoints) and np.allclose(sc_car_kpoints, qe2sc_car_kpoints):
-                print('Cartesian QE -> SC: Match')
-            else:
-                print('Cartesian QE -> SC: Mismatch!')
-                print(f"{len(qe2sc_car_kpoints)} k-points")
-                print(np.round(qe2sc_car_kpoints, 6))
+            print(np.round(sc_car_kpoints * a, 6))
 
             print('Fractional:')
             print(f"{len(sc_red_kpoints)} k-points")
             print(sc_red_kpoints)
-
-            if len(sc_red_kpoints) == len(qe2sc_red_kpoints) and np.allclose(sc_red_kpoints, qe2sc_red_kpoints):
-                print('Fractional QE -> SC: Match')
-            else:
-                print('Fractional QE -> SC: Mismatch!')
-                print(f"{len(qe2sc_red_kpoints)} k-points")
-                print(np.round(qe2sc_red_kpoints, 6))
 
             print('\n### QE Cell ###')
 
@@ -496,16 +483,42 @@ class BrillouinZone():
             print(self.cell.cellpar())
 
             print('Direct:')
-            print(np.round(self.cell[:] / a, 6))
+            print(np.round(qe_cell / a, 6))
 
-            print('Reciprocal:')
-            print(np.round(self.cell.reciprocal()[:] * a, 6))
+            if np.allclose(qe_cell, sc2qe_cell):
+                print('Direct SC -> QE: Match')
+            else:
+                print('Direct SC -> QE: Mismatch!')
+                print(np.round(sc2qe_cell / a, 6))
 
-            print('Cartesian:')
+            print('Reciprocal (units of 2pi/a):')
+            print(np.round(qe_reciprocal * a, 6))
+
+            if np.allclose(qe_reciprocal, sc2qe_reciprocal):
+                print('Reciprocal SC -> QE: Match')
+            else:
+                print('Reciprocal SC -> QE: Mismatch!')
+                print(np.round(sc2qe_reciprocal * a, 6))
+
+            print('Cartesian (units of 2pi/a):')
             print(np.round(self.bandpath.cartesian_kpts() * a, 6))
 
+            if len(qe_car_kpoints) == len(sc2qe_car_kpoints) and np.allclose(qe_car_kpoints, sc2qe_car_kpoints):
+                print('Cartesian SC -> QE: Match')
+            else:
+                print('Cartesian SC -> QE: Mismatch!')
+                print(f"{len(sc2qe_car_kpoints)} k-points")
+                print(np.round(sc2qe_car_kpoints * a, 6))
+
             print('Fractional:')
-            print(np.round(self.bandpath.kpts, 6))
+            print(np.round(qe_red_kpoints, 6))
+
+            if len(qe_red_kpoints) == len(sc2qe_red_kpoints) and np.allclose(qe_red_kpoints, sc2qe_red_kpoints):
+                print('Fractional SC -> QE: Match')
+            else:
+                print('Fractional SC -> QE: Mismatch!')
+                print(f"{len(sc2qe_red_kpoints)} k-points")
+                print(np.round(sc2qe_red_kpoints, 6))
 
 
 
@@ -537,7 +550,7 @@ class BrillouinZone():
             Fsc_inv = np.linalg.inv(Fsc)
 
             P = np.matmul(Fsc_inv, Fqe)
-            U = np.matmul(np.transpose(Bsc), np.linalg.inv(np.transpose(np.matmul(P, Bqe))))
+            U = np.matmul(np.linalg.inv(Bsc), np.matmul(P, Bqe))
         else:
             P = np.eye(3)
             U = np.eye(3)
