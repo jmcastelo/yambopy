@@ -272,7 +272,7 @@ class YamboQPDB():
 
     def get_bs_path(self, lat, bz, debug = False, **kwargs):
 
-        bands_kpoints, bands_indexes, _ = bz.get_collinear_kpoints(lat.car_kpoints, lat.sym_car, debug = debug)
+        bands_kpoints, bands_indexes, _ = bz.get_collinear_kpoints(lat.car_kpoints, lat.sym_car, debug=debug)
 
         # set fermi energy
         # NOT EVIDENT IN SPIN-POLARIZED SYSTEM
@@ -342,13 +342,12 @@ class YamboQPDB():
         time_rev = True
 
         #band_kpoints_rlu = path.get_klist()[:,:3]
-        band_kpoints_rlu = bz.kpoints(coords = 'red')
+        band_kpoints_rlu = bz.kpoints(coords='red')
 
         # Obtain quantities in cc needed for plot (since interpolation wants rlu)
         #_, _, path_car = get_path(lattice.car_kpoints,lattice.rlat,lattice.sym_car,path)
         #band_kpoints = red_car(band_kpoints_rlu,lattice.rlat)
-        band_kpoints = bz.kpoints(coords = 'car')
-
+        band_kpoints = bz.kpoints(coords='car')
 
         #interpolate KS
         ks_ebands, qp_ebands = None, None

@@ -1,15 +1,14 @@
 import numpy as np
-from math import sqrt, cos, sin, radians
-from ase.cell import Cell
-from ase.dft.kpoints import parse_path_string
+from math import sqrt, cos, tan, radians, isclose
 from itertools import product
+import re
 
 from yambopy.kpoints import expand_kpoints
 from yambopy.lattice import red_car, isbetween
 
 
 
-class BrillouinZone():
+class BrillouinZone:
     """
     Constructs interpolated paths in any of the existing Brillouin zones.
 
@@ -31,144 +30,27 @@ class BrillouinZone():
         1: ['a'],
         2: ['a'],
         3: ['a'],
-        #-3: ['a'],
+        -3: ['a'],
         4: ['a', 'c'],
-        5: ['a', 'gamma'],
-        #-5: ['a', 'gamma'],
+        5: ['a', 'alpha'],
+        # -5: ['a', 'gamma'],
         6: ['a', 'c'],
         7: ['a', 'c'],
         8: ['a', 'b', 'c'],
         9: ['a', 'b', 'c'],
-        #-9: ['a', 'b', 'c'],
-        #91: ['a', 'b', 'c'],
+        -9: ['a', 'b', 'c'],
+        # 91: ['a', 'b', 'c'],
         10: ['a', 'b', 'c'],
         11: ['a', 'b', 'c'],
-        12: ['a', 'b', 'c', 'gamma'],
-        -12: ['a', 'b', 'c', 'beta'],
-        #13: ['a', 'b', 'c', 'gamma'],
-        #-13: ['a', 'b', 'c', 'beta'],
-        #14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
+        # 12: ['a', 'b', 'c', 'gamma'],
+        # -12: ['a', 'b', 'c', 'beta'],
+        # 13: ['a', 'b', 'c', 'gamma'],
+        # -13: ['a', 'b', 'c', 'beta'],
+        # 14: ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
     }
 
-    # For each ibrav and variant, we have sampled three special k-point reduced coordinates using QE.
-    # Used to obtain transformation matrices (ASE/SC -> QE).
 
-    selected_points_qe = {
-        1: {
-            'CUB': {
-                'M': [1/2, 1/2, 0],
-                'R': [1/2, 1/2, 1/2],
-                'X': [0, 1/2, 0]
-            }
-        },
-        2: {
-            'FCC': {
-                'K': [-3/8, 3/8, 0],
-                'L': [0, 1/2, 0],
-                'U': [0, 5/8, 3/8]
-            }
-        },
-        3: {
-            'BCC': {
-                'H': [1/2, 1/2, -1/2],
-                'P': [3/4, 1/4, -1/4],
-                'N': [1/2, 0, -1/2]
-            }
-        },
-        4: {
-            'HEX': {
-                'K': [2/3, -1/3, 0],
-                'L': [1/2, 0, 1/2],
-                'M': [1/2, 0, 0]
-            }
-        },
-        5: {
-            'RHL1': {
-                'F': [1/2, 1/2, 0],
-                'L': [1/2, 0, 0],
-                'L1': [0, 0, -1/2]
-            },
-            'RHL2': {
-                'F': [0, 1/2, -1/2],
-                'L': [0, 1/2, 0],
-                'Z': [1/2, 1/2, -1/2]
-            }
-        },
-        6: {
-            'TET': {
-                'M': [1/2, 1/2, 0],
-                'X': [0, 1/2, 0],
-                'Z': [0, 0, 1/2]
-            }
-        },
-        7: {
-            'BCT1': {
-                'M': [1/2, 1/2, -1/2],
-                'N': [1/2, 1/2, 0],
-                'P': [1/4, 3/4, -1/4]
-            },
-            'BCT2': {
-                'N': [1/2, 1/2, 0],
-                'P': [1/4, 3/4, -1/4],
-                'X': [0, 1/2, -1/2]
-            }
-        },
-        8: {
-            'ORC': {
-                'X': [1/2, 0, 0],
-                'Y': [0, 1/2, 0],
-                'Z': [0, 0, 1/2]
-            }
-        },
-        9: {
-            'ORCC': {
-                'R': [1/2, 0, 1/2],
-                'S': [1/2, 0, 0],
-                'T': [1/2, 1/2, 1/2]
-            }
-        },
-        10: {
-            'ORCF1': {
-                'L': [1/2, 1/2, 1/2],
-                'Y': [0, 1/2, 1/2],
-                'Z': [1/2, 0, 1/2]
-            },
-            'ORCF2': {
-                'L': [1/2, 1/2, 1/2],
-                'Y': [0, 1/2, 1/2],
-                'Z': [1/2, 0, 1/2]
-            },
-            'ORCF3': {
-                'L': [1/2, 1/2, 1/2],
-                'Y': [0, 1/2, 1/2],
-                'Z': [1/2, 0, 1/2]
-            }
-        },
-        11: {
-            'ORCI': {
-                'R': [1/2, 0, 0],
-                'S': [1/2, 1/2, 0],
-                'T': [1/2, 0, -1/2]
-            }
-        },
-        12: {
-            'MCL': {
-                'X': [1/2, 0, 0],
-                'Y': [0, 1/2, 0],
-                'Z': [0, 0, 1/2]
-            }
-        },
-        -12: {
-            'MCL': {
-                # 'X': [1/2, 0, 0],
-                'A': [1/2, 0, 1/2],
-                'Y': [0, 1/2, 0],
-                'Z': [0, 0, 1/2]
-            }
-        }
-    }
-
-    def __init__(self, ibrav, parameters=None, path=None, extra_points=None, npoints=None, density=None):
+    def __init__(self, ibrav: int, parameters=None, path_string=None, extra_points=None, npoints: int = None, density: float = None):
         """
         Initializes the Brillouin zone of a selected lattice type, with given required parameters.
         Path can be determined via special k-points labels, corresponding to high symmetry points of the BZ and/or user-given k-point labels.
@@ -179,8 +61,6 @@ class BrillouinZone():
             * parameters: (dict) Dictionary with lattice parameters. (e.g. {'a': 0.123, 'c': 0.321})
             * path: (string) Piecewise special k-point path in the Brillouin zone. Defaults to standard path. (e.g. 'GMKGALHA,LM,KH')
             * extra_points: (dict) Dictionary defining extra special k-points to be used in the path. May overwrite pre-existing special k-points. (e.g. {'M': [0, 0.5, 0], 'K': [1/3, 1/3, 0.0]}
-            * npoints: (int) Number of k-points on the path. If none given and density not specified, only the special k-points defining the path are considered. Not compatible with density argument.
-            * density: (float) Density of k-points per 1/Angstrom. If none given and npoints not specified, only the special k-points defining the path are considered. Not compatible with npoints argument.
         """
 
         # Check if valid Bravais-lattice index
@@ -213,22 +93,20 @@ class BrillouinZone():
         self.arguments = {
             'ibrav': ibrav,
             'parameters' : parameters,
-            'path': path,
+            'path': path_string,
             'extra_points': extra_points,
-            'npoints': npoints,
-            'density': density
         }
 
         # Set parameters
 
-        a = parameters.get('a', None)
-        b = parameters.get('b', None)
-        c = parameters.get('c', None)
-        alpha = parameters.get('alpha', None)
-        beta = parameters.get('beta', None)
-        gamma = parameters.get('gamma', None)
+        a = parameters.get('a', 1)
+        b = parameters.get('b', 1)
+        c = parameters.get('c', 1)
+        alpha = parameters.get('alpha', np.pi / 2)
+        beta = parameters.get('beta', np.pi / 2)
+        gamma = parameters.get('gamma', np.pi / 2)
 
-        # Set lattice vectors as QE does
+        # Set lattice vectors and high symmetry points
 
         match ibrav:
             # CUB
@@ -236,34 +114,159 @@ class BrillouinZone():
                 v1 = [a, 0, 0]
                 v2 = [0, a, 0]
                 v3 = [0, 0, a]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'CUB'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'M': [1 / 2, 1 / 2, 0],
+                    'R': [1 / 2, 1 / 2, 1 / 2],
+                    'X': [0, 1 / 2, 0]
+                }
+
+                self.default_path = 'GXMGRX,MR'
+
             # FCC
             case 2:
                 v1 = [-a / 2, 0, a / 2]
                 v2 = [0, a / 2, a / 2]
                 v3 = [-a / 2, a / 2 , 0]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'FCC'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'K': [-3 / 8, 3 / 8, 0],
+                    'L': [0, 1 / 2, 0],
+                    'U': [0, 5 / 8, 3 / 8],
+                    'W': [-1 / 4, 1 / 2, 1 / 4],
+                    'X': [0, 1 / 2, 1 / 2]
+                }
+
+                self.default_path = 'GXWKGLUWLK,UX'
+
             # BCC
             case 3:
                 v1 = [a / 2, a / 2, a / 2]
                 v2 = [-a / 2, a / 2, a / 2]
                 v3 = [-a / 2, -a / 2, a / 2]
-            # case -3:
-            #     v1 = [-a / 2, a / 2, a / 2]
-            #     v2 = [a / 2, -a / 2, a / 2]
-            #     v3 = [a / 2, a / 2, -a / 2]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'BCC'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'H': [1 / 2, 1 / 2, -1 / 2],
+                    'P': [3 / 4, 1 / 4, -1 / 4],
+                    'N': [1 / 2, 0, -1 / 2]
+                }
+
+                self.default_path = 'GHNGPH,PN'
+
+            # BCC
+            case -3:
+                v1 = [-a / 2, a / 2, a / 2]
+                v2 = [a / 2, -a / 2, a / 2]
+                v3 = [a / 2, a / 2, -a / 2]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'BCC'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'H': [1 / 2, -1 / 2, 1 / 2],
+                    'P': [1 / 4, 1 / 4, 1 / 4],
+                    'N': [0, 0, 1 / 2]
+                }
+
+                self.default_path = 'GHNGPH,PN'
+
             # HEX
             case 4:
                 v1 = [a, 0, 0]
                 v2 = [-a / 2, a * sqrt(3) / 2, 0]
                 v3 = [0, 0, c]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'HEX'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'A': [0, 0, 1 / 2],
+                    'H': [2 / 3, -1 / 3, 1 / 2],
+                    'K': [2 / 3, -1 / 3, 0],
+                    'L': [1 / 2, 0, 1 / 2],
+                    'M': [1 / 2, 0, 0]
+                }
+
+                self.default_path = 'GMKGALHA,LM,KH'
+
             # RHL
             case 5:
-                c = cos(radians(gamma))
+                c = cos(radians(alpha))
+
                 tx = sqrt((1 - c) / 2)
                 ty = sqrt((1 - c) / 6)
                 tz = sqrt((1 + 2 * c) / 3)
+
                 v1 = [a * tx, -a * ty, a * tz]
                 v2 = [0, a * 2 * ty, a * tz]
                 v3 = [-a * tx, -a * ty, a * tz]
+
+                self.cell = np.array([v1, v2, v3])
+
+                if 0 < alpha < 90:
+                    self.variant = 'RHL1'
+
+                    eta = (1 + 4 * cos(alpha)) / (2 + 4 * cos(alpha))
+                    nu = 3 / 4 - eta / 2
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'B': [eta, 1 / 2, 1 - eta],
+                        'B1': [1 / 2, 1 - eta, eta - 1],
+                        'F': [1 / 2, 1 / 2, 0],
+                        'L': [1 / 2, 0, 0],
+                        'L1': [ 0, 0, -1 / 2],
+                        'P': [eta, nu, nu],
+                        'P1': [ 1 - nu, 1 - nu, 1 - eta],
+                        'P2': [nu, nu, eta - 1],
+                        'Q': [1 - nu, nu, 0],
+                        'X': [nu, 0, -nu],
+                        'Z': [1 / 2, 1 / 2, 1 / 2]
+                    }
+
+                    self.default_path = 'GLB1,BZGX,QFP1Z,LP'
+
+                elif 90 < alpha < 120:
+                    self.variant = 'RHL2'
+
+                    eta = 1 / (2 * tan(alpha / 2) ** 2)
+                    nu = 3 / 4 - eta / 2
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'F': [0, 1 / 2, -1 / 2],
+                        'L': [0, 1 / 2, 0],
+                        'P': [1 - nu, 1 - nu, -nu],
+                        'P1': [nu - 1, nu, nu - 1],
+                        'Q': [eta, eta, eta],
+                        'Q1': [-eta, 1 - eta, -eta],
+                        'Z': [1 / 2, 1 / 2, -1 / 2]
+                    }
+
+                    self.default_path = 'GPZQGFP1Q1LZ'
+
+                else:
+                    raise ValueError('Invalid alpha value')
+
             # case -5:
             #     a /= sqrt(3)
             #     c = cos(radians(gamma))
@@ -274,53 +277,258 @@ class BrillouinZone():
             #     v1 = [a * u, a * v, a * v]
             #     v2 = [a * v, a * u, a * v]
             #     v3 = [a * v, a * v, a * u]
+
             # TET
             case 6:
                 v1 = [a, 0, 0]
                 v2 = [0, a, 0]
                 v3 = [0, 0, c]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'TET'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'A': [1 / 2, 1 / 2, 1 / 2],
+                    'M': [1 / 2, 1 / 2, 0],
+                    'R': [0, 1 / 2, 1 / 2],
+                    'X': [0, 1 / 2, 0],
+                    'Z': [0, 0, 1 / 2]
+                }
+
+                self.default_path = 'GXMGZRAZ,XR,MA'
+
             # BCT
             case 7:
                 v1 = [a / 2, -a / 2, c / 2]
                 v2 = [a / 2, a / 2, c / 2]
                 v3 = [-a / 2, -a / 2, c / 2]
+
+                self.cell = np.array([v1, v2, v3])
+
+                if isclose(a, c, rel_tol=1e-5):
+                    raise ValueError('Select either c<a or c>a')
+
+                elif c < a:
+                    self.variant = 'BCT1'
+
+                    eta = (1 + c ** 2 / a ** 2) / 4
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'M': [1 / 2, 1 / 2, -1 / 2],
+                        'N': [1 / 2, 1 / 2, 0],
+                        'P': [1 / 4, 3 / 4, -1 / 4],
+                        'X': [0, 1 / 2, -1 / 2],
+                        'Z': [eta, eta, eta],
+                        'Z1': [1 - eta, 1 - eta, -eta]
+                    }
+
+                    self.default_path = 'GXMGZPNZ1M,XP'
+
+                elif c > a:
+                    self.variant = 'BCT2'
+
+                    eta = (1 + a ** 2 / c ** 2) / 4
+                    zeta = a ** 2 / (2 * c ** 2)
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'N': [1 / 2, 1 / 2, 0],
+                        'P': [1 / 4, 3 / 4, -1 / 4],
+                        'S': [eta, eta, -eta],
+                        'S1': [ 1 - eta, 1 - eta, eta],
+                        'X': [0, 1 / 2, -1 / 2],
+                        'Y': [zeta, 1 / 2, -1 / 2],
+                        'Y1': [1 / 2, 1 - zeta, zeta],
+                        'Z': [1 / 2, 1 / 2, 1 / 2]
+                    }
+
+                    self.default_path = 'GXYSGZS1NPY1Z,XP'
+
             # ORC
             case 8:
                 v1 = [a, 0, 0]
                 v2 = [0, b, 0]
                 v3 = [0, 0, c]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'ORC'
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'R': [1 / 2, 1 / 2, 1 / 2],
+                    'S': [1 / 2, 1 / 2, 0],
+                    'T': [0, 1 / 2, 1 / 2],
+                    'U': [1 / 2, 0, 1 / 2],
+                    'X': [1 / 2, 0, 0],
+                    'Y': [0, 1 / 2, 0],
+                    'Z': [0, 0, 1 / 2]
+                }
+
+                self.default_path = 'GXSYGZURTZ,YT,UX,SR'
+
             # ORCC
             case 9:
                 v1 = [a / 2, b / 2, 0]
                 v2 = [-a / 2, b / 2, 0]
                 v3 = [0, 0, c]
-            # case -9:
-            #     v1 = [a / 2, -b / 2, 0]
-            #     v2 = [a / 2, b / 2, 0]
-            #     v3 = [0, 0, c]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'ORCC'
+
+                zeta = (1 + a ** 2 / b ** 2) / 4
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'A': [zeta, -zeta, 1 / 2],
+                    'A1': [1 - zeta, zeta, 1 / 2],
+                    'R': [1 / 2, 0, 1 / 2],
+                    'S': [1 / 2, 0, 0],
+                    'T': [1 / 2, 1 / 2, 1 / 2],
+                    'X': [zeta, -zeta, 0],
+                    'X1': [1 - zeta, zeta, 0],
+                    'Y': [1 / 2, 1 / 2, 0],
+                    'Z': [0, 0, 1 / 2]
+                }
+
+                self.default_path = 'GXSRAZGYX1A1TY,ZT'
+
+            # ORCC
+            case -9:
+                v1 = [a / 2, -b / 2, 0]
+                v2 = [a / 2, b / 2, 0]
+                v3 = [0, 0, c]
+
+                self.cell = np.array([v1, v2, v3])
+
+                self.variant = 'ORCC'
+
+                zeta = (1 + a ** 2 / b ** 2) / 4
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'A': [zeta, zeta, 1 / 2],
+                    'A1': [-zeta, 1 - zeta, 1 / 2],
+                    'R': [0, 1 / 2, 1 / 2],
+                    'S': [0, 1 / 2, 0],
+                    'T': [-1 / 2, 1 / 2, 1 / 2],
+                    'X': [zeta, zeta, 0],
+                    'X1': [-zeta, 1 - zeta, 0],
+                    'Y': [-1 / 2, 1 / 2, 0],
+                    'Z': [0, 0, 1 / 2]
+                }
+
+                self.default_path = 'GXSRAZGYX1A1TY,ZT'
+
             # case 91:
             #     v1 = [a, 0, 0]
             #     v2 = [0, b / 2, -c / 2]
             #     v3 = [0, b / 2, c / 2]
+
             # ORCF
             case 10:
                 v1 = [a / 2, 0, c / 2]
                 v2 = [a / 2, b / 2, 0]
                 v3 = [0, b / 2, c / 2]
+
+                self.cell = np.array([v1, v2, v3])
+
+                ia = 1 / a ** 2
+                ibc = 1 / b ** 2 + 1 / c ** 2
+
+                if isclose(ia, ibc, rel_tol=1e-5):
+                    self.variant = 'ORCF3'
+                elif ia < ibc:
+                    self.variant = 'ORCF2'
+                else:
+                    self.variant = 'ORCF1'
+
+                if self.variant in ['ORCF1', 'ORCF3']:
+                    zeta = (1 + a ** 2 / b ** 2 - a ** 2 / c ** 2) / 4
+                    eta = (1 + a ** 2 / b ** 2 + a ** 2 / c ** 2) / 4
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'A': [1 / 2 + zeta, zeta, 1 / 2],
+                        'A1': [1 / 2 - zeta, 1 - zeta, 1 / 2],
+                        'L': [1 / 2, 1 / 2, 1 / 2],
+                        'T': [1 / 2, 1 / 2, 1],
+                        'X': [eta, eta, 0],
+                        'X1': [1 - eta, 1 - eta, 1],
+                        'Y': [0, 1 / 2, 1 / 2],
+                        'Z': [1 / 2, 0, 1 / 2]
+                    }
+
+                    if self.variant == 'ORCF1':
+                        self.default_path = 'GYTZGXA1Y,TX1,XAZ,LG'
+                    else:
+                        self.default_path = 'GYTZGXA1Y,XAZ,LG'
+
+                else:
+                    eta = (1 + a ** 2 / b ** 2 - a ** 2 / c ** 2) / 4
+                    delta = (1 + b ** 2 / a ** 2 - b ** 2 / c ** 2) / 4
+                    phi = (1 + c ** 2 / b ** 2 - c ** 2 / a ** 2) / 4
+
+                    self.high_symmetry_points = {
+                        'G': [0, 0, 0],
+                        'C': [1 / 2 - eta, 1 - eta, 1 / 2],
+                        'C1': [1 / 2 + eta, eta, 1 / 2],
+                        'D': [1 / 2, 1 - delta, 1 / 2 - delta],
+                        'D1': [1 / 2, delta, 1 / 2 + delta],
+                        'L': [1 / 2, 1 / 2, 1 / 2],
+                        'H': [1 / 2 - phi, 1 / 2, 1 - phi],
+                        'H1': [1 / 2 + phi, 1 / 2, phi],
+                        'X': [1 / 2, 1 / 2, 0],
+                        'Y': [0, 1 / 2, 1 / 2],
+                        'Z': [1 / 2, 0, 1 / 2]
+                    }
+
+                    self.default_path = 'GYCDXGZD1HC,C1Z,XH1,HY,LG'
+
             # ORCI
             case 11:
                 v1 = [a / 2, b / 2, c / 2]
                 v2 = [-a / 2, b / 2, c / 2]
                 v3 = [-a / 2, -b / 2, c / 2]
+
+                self.cell = np.array([v1, v2, v3])
+
+                mu = (a ** 2 + b ** 2) / (4 * c ** 2)
+                delta = (b ** 2 - a ** 2) / (4 * c ** 2)
+                zeta = (1 + a ** 2 / c ** 2) / 4
+                eta = (1 + b ** 2 / c ** 2) / 4
+
+                self.high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'L': [1 / 2 - delta, -mu, delta - 1 / 2],
+                    'L1': [1 / 2 + delta, mu, -1 / 2 - delta],
+                    'L2': [1 - mu, 1 / 2 - delta, mu],
+                    'R': [1 / 2, 0, 0],
+                    'S': [1 / 2, 1 / 2, 0],
+                    'T': [1 / 2, 0, -1 / 2],
+                    'W': [3 / 4, 1 / 4, -1 / 4],
+                    'X': [zeta, -zeta, -zeta],
+                    'X1': [1 - zeta, zeta, zeta],
+                    'Y': [eta, eta, -eta],
+                    'Y1': [1 - eta, 1 - eta, eta],
+                    'Z': [1 / 2, 1 / 2, 1 / 2]
+                }
+
+                self.default_path = 'GXLTWRX1ZGYSW,L1Y,Y1Z'
+
             # MCL
-            case 12:
-                v1 = [a, 0, 0]
-                v2 = [b * cos(radians(gamma)), b * sin(radians(gamma)), 0]
-                v3 = [0, 0, c]
-            case -12:
-                v1 = [a, 0, 0]
-                v2 = [0, b, 0]
-                v3 = [c * cos(radians(beta)), 0, c * sin(radians(beta))]
+            # case 12:
+            #     v1 = [a, 0, 0]
+            #     v2 = [b * cos(radians(gamma)), b * sin(radians(gamma)), 0]
+            #     v3 = [0, 0, c]
+            # case -12:
+            #     v1 = [a, 0, 0]
+            #     v2 = [0, b, 0]
+            #     v3 = [c * cos(radians(beta)), 0, c * sin(radians(beta))]
             # MCLC
             # case 13:
             #     v1 = [a / 2, 0, -c / 2]
@@ -338,44 +546,35 @@ class BrillouinZone():
             #           c * (cos(radians(alpha)) - cos(radians(beta)) * cos(radians(gamma))) / sin(radians(gamma)),
             #           c * sqrt(1 + 2 * cos(radians(alpha)) * cos(radians(beta)) * cos(radians(gamma)) - cos(radians(alpha)) ** 2 - cos(radians(beta)) ** 2 - cos(radians(gamma)) ** 2) / sin(radians(gamma))]
 
-        # Set Cell object and Bravais lattice (ASE resources):
-        # Cell object: represents a Cell given direct QE's lattice vectors, corresponding to specified ibrav
-        # 'get_bravais_lattice' method: identifies the Bravais lattice type of the Cell object and returns BravaisLattice object
-        # BravaisLattice object: contains high-symmetry points and default path, following SC criterion for basis vectors
+        # Reciprocal cell
 
-        self.cell = Cell([v1, v2, v3])
-        self.blat = self.cell.get_bravais_lattice()
-
-        # Transform BravaisLattice object's high-symmetry points from ASE/SC to QE representation
-        # We store ASE/SC special points to check results later
-
-        self.special_points = self.transformed_special_points()
-        self.blat_special_points = self.blat.get_special_points()
+        self.rcell = np.linalg.inv(np.transpose(self.cell))
 
         # If extra_points given, add them to special k-points dictionary, possibly overwriting existing ones
 
         if isinstance(extra_points, dict):
             for label, coords in extra_points.items():
-                self.special_points[label] = np.array(coords)
-                # Transform to ASE/SC representation
-                self.blat_special_points[label] = np.matmul(np.array(coords), np.linalg.inv(self.P))
+                self.high_symmetry_points[label] = np.array(coords)
 
         # Set default path if none given
 
-        if path is None:
-            path = self.blat.special_path
+        if path_string is None:
+            self.path_string = self.default_path
+        else:
+            self.path_string = path_string
 
-        # Set no interpolation of k-points along the path if npoints and density not given
+        # Obtain path sections
 
-        if npoints is None and density is None:
-            npoints = 0
+        self.path_sections = []
+        for section in self.path_string.split(','):
+            labels = [label for label in re.split(r'([A-Z][a-z0-9]*)', section) if label]
+            self.path_sections.append(labels)
 
-        # Set BandPath objects (ASE resources):
-        # 'bandpath' method: builds a BandPath object for a cell
-        # BandPath objects: represent Brillouin zone paths, either following QE (actual path) or ASE/SC criteria (for checking purposes), depending on special_points given
+        all_labels_recognized = np.all([label in self.high_symmetry_points.keys() for section in self.path_sections for label in section])
+        if not all_labels_recognized:
+            raise ValueError('Given path contains unrecognized labels')
 
-        self.bandpath = self.cell.bandpath(path=path, special_points=self.special_points, npoints=npoints, density=density)
-        self.blat_bandpath = self.blat.bandpath(path=path, special_points=self.blat_special_points, npoints=npoints, density=density)
+        self.interpolate(npoints, density)
 
 
 
@@ -394,186 +593,48 @@ class BrillouinZone():
         Construct a new object of this class, given a dictionary with all arguments needed.
         """
 
-        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path=args['path'], extra_points=args['extra_points'], npoints=args['npoints'], density=args['density'])
+        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'])
 
 
 
-    def info(self, debug=False):
-        """
-        Prints description of the direct and reciprocal lattices, and tests of correctness of transformation.
-        """
+    def interpolate(self, npoints: int = None, density: float = None):
+        if npoints is not None and density is not None:
+            raise ValueError('You may define npoints or density, but not both.')
 
-        print(f"Lattice name: {self.blat.name} ({self.blat.longname})")
-        print(f"Variant name: {self.blat.variant}")
-        print('Parameters:')
-        for name, value in zip(['a', 'b', 'c', 'alpha', 'beta', 'gamma'], self.cell.cellpar()):
-            print(f"\t{name}: {np.round(value, 3)}")
-        print(f"Special k-point names: {self.blat.special_point_names}")
-        print(f"Default path: {self.blat.special_path}")
+        points = self.special_kpoints('red', True)
+        dists = points[1:] - points[:-1]
+        lengths = self.special_kpoints_distances(True)[1:]
+        length = sum(lengths)
 
-        print('Special k-point reduced coordinates:')
-        for label, coords in self.special_points.items():
-            print(f"\t{label}:\t{coords[0]:.4f}\t{coords[1]:.4f}\t{coords[2]:.4f}")
+        if npoints is None:
+            if density is None:
+                density = 5
+            npoints = int(round(length * density))
 
-        if debug:
-            a = self.arguments['parameters']['a']
+        self.kpts_red = []
+        x0 = 0
+        x = []
 
-            sc_cell = self.blat.tocell()[:]
-            qe_cell = self.cell[:]
-            sc2qe_cell = np.matmul(np.transpose(self.P), np.matmul(sc_cell, self.U))
-
-            sc_reciprocal = self.blat.tocell().reciprocal()[:]
-            qe_reciprocal = self.cell.reciprocal()[:]
-            sc2qe_reciprocal = np.matmul(np.linalg.inv(self.P), np.matmul(sc_reciprocal, self.U))
-
-            qe_car_kpoints = self.bandpath.cartesian_kpts()
-            sc_car_kpoints = self.blat_bandpath.cartesian_kpts()
-            sc2qe_car_kpoints = np.einsum('ik,kj->ij', sc_car_kpoints, self.U)
-
-            qe_red_kpoints = self.bandpath.kpts
-            sc_red_kpoints = self.blat_bandpath.kpts
-            sc2qe_red_kpoints = np.einsum('ik,kj->ij', sc_red_kpoints, self.P)
-
-            print('\n### Transformation matrices: ASE/SC -> QE ###')
-
-            print('Cartesian basis transformation matrix U:')
-            print(np.round(self.U, 6))
-            print(f"det(U) = {np.round(np.linalg.det(self.U), 6)}")
-
-            if np.allclose(np.linalg.inv(self.U), np.transpose(self.U)):
-                print('Orthogonal: Yes')
+        for kpt, dist, l in zip(points[:-1], dists, lengths):
+            diff = length - x0
+            if abs(diff) < 1e-6:
+                n = 0
             else:
-                print('Orthogonal: No')
-                print('Inverse(U):')
-                print(np.linalg.inv(self.U))
-                print('Transpose(U):')
-                print(np.transpose(self.U))
+                n = max(2, int(round(l * (npoints - len(x)) / diff)))
 
-            print('Cartesian basis vector angles (deg):')
-            print(np.round(np.degrees(np.arccos(np.round(self.U, 4))), 3))
+            for t in np.linspace(0, 1, n)[:-1]:
+                self.kpts_red.append(kpt + t * dist)
+                x.append(x0 + t * l)
 
-            print('Reciprocal basis transformation matrix P:')
-            print(np.round(self.P, 6))
-            print(f"det(P) = {np.round(np.linalg.det(self.P), 6)}")
+            x0 += l
 
-            print('\n### ASE/SC Cell ###')
+        if len(points) > 0:
+            self.kpts_red.append(points[-1])
 
-            print(self.blat.description())
+        if len(self.kpts_red) == 0:
+            self.kpts_red = np.empty((0, 3))
 
-            print('Parameters:')
-            print(self.blat.cellpar())
-
-            print('Direct:')
-            print(np.round(sc_cell / a, 6))
-
-            print('Reciprocal (units of 2pi/a):')
-            print(np.round(sc_reciprocal * a, 6))
-
-            print('Cartesian (units of 2pi/a):')
-            print(f"{len(sc_car_kpoints)} k-points")
-            print(np.round(sc_car_kpoints * a, 6))
-
-            print('Fractional:')
-            print(f"{len(sc_red_kpoints)} k-points")
-            print(sc_red_kpoints)
-
-            print('\n### QE Cell ###')
-
-            print('Parameters:')
-            print(self.cell.cellpar())
-
-            print('Direct:')
-            print(np.round(qe_cell / a, 6))
-
-            if np.allclose(qe_cell, sc2qe_cell):
-                print('Direct SC -> QE: Match')
-            else:
-                print('Direct SC -> QE: Mismatch!')
-                print(np.round(sc2qe_cell / a, 6))
-
-            print('Reciprocal (units of 2pi/a):')
-            print(np.round(qe_reciprocal * a, 6))
-
-            if np.allclose(qe_reciprocal, sc2qe_reciprocal):
-                print('Reciprocal SC -> QE: Match')
-            else:
-                print('Reciprocal SC -> QE: Mismatch!')
-                print(np.round(sc2qe_reciprocal * a, 6))
-
-            print('Cartesian (units of 2pi/a):')
-            print(np.round(self.bandpath.cartesian_kpts() * a, 6))
-
-            if len(qe_car_kpoints) == len(sc2qe_car_kpoints) and np.allclose(qe_car_kpoints, sc2qe_car_kpoints):
-                print('Cartesian SC -> QE: Match')
-            else:
-                print('Cartesian SC -> QE: Mismatch!')
-                print(f"{len(sc2qe_car_kpoints)} k-points")
-                print(np.round(sc2qe_car_kpoints * a, 6))
-
-            print('Fractional:')
-            print(np.round(qe_red_kpoints, 6))
-
-            if len(qe_red_kpoints) == len(sc2qe_red_kpoints) and np.allclose(qe_red_kpoints, sc2qe_red_kpoints):
-                print('Fractional SC -> QE: Match')
-            else:
-                print('Fractional SC -> QE: Mismatch!')
-                print(f"{len(sc2qe_red_kpoints)} k-points")
-                print(np.round(sc2qe_red_kpoints, 6))
-
-
-
-    def change_of_basis_matrices(self):
-        """
-        Construct change of basis matrices: ASE/SC -> QE
-
-        Matrix P: connects special k-point reduced coordinates on both representations.
-        Matrix U: connects reciprocal lattices bases on both representations.
-
-        Output:
-            * (ndarray) Matrices P and U.
-        """
-
-        Bqe = self.cell.reciprocal()[:]
-        Bsc = self.blat.tocell().reciprocal()[:]
-
-        ibrav = self.arguments['ibrav']
-        variant = self.blat.variant
-
-        if ibrav in self.selected_points_qe and variant in self.selected_points_qe[ibrav]:
-            fcoords_qe = self.selected_points_qe[ibrav][variant]
-            fcoords_sc = self.blat.get_special_points()
-
-            labels = list(self.selected_points_qe[ibrav][variant].keys())
-
-            Fqe = np.array([fcoords_qe[labels[0]], fcoords_qe[labels[1]], fcoords_qe[labels[2]]])
-            Fsc = np.array([fcoords_sc[labels[0]], fcoords_sc[labels[1]], fcoords_sc[labels[2]]])
-            Fsc_inv = np.linalg.inv(Fsc)
-
-            P = np.matmul(Fsc_inv, Fqe)
-            U = np.matmul(np.linalg.inv(Bsc), np.matmul(P, Bqe))
-        else:
-            P = np.eye(3)
-            U = np.eye(3)
-
-        return P, U
-
-
-
-    def transformed_special_points(self):
-        """
-        Transform Brillouin zone special k-points from ASE/SC to QE representation.
-
-        Output:
-            * (dict) Transformed special k-points.
-        """
-
-        self.P, self.U = self.change_of_basis_matrices()
-
-        special_points = {}
-        for label, coords in self.blat.get_special_points().items():
-            special_points[label] = np.matmul(coords, self.P)
-
-        return special_points
+        self.kpts_car = [np.matmul(kpt, self.rcell) for kpt in self.kpts_red]
 
 
 
@@ -590,18 +651,18 @@ class BrillouinZone():
         """
 
         # To get path with Quantum ESPRESSO's format:
-        #   Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
+        # Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
 
         if coords == 'red':
             if qe:
-                return np.pad(self.bandpath.kpts, [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(self.kpts_red, [(0, 0), (0, 1)], 'constant', constant_values=1)
             else:
-                return self.bandpath.kpts
+                return np.array(self.kpts_red)
         elif coords == 'car':
             if qe:
-                return np.pad(self.bandpath.cartesian_kpts(), [(0, 0), (0, 1)], 'constant', constant_values = 1)
+                return np.pad(self.kpts_car, [(0, 0), (0, 1)], 'constant', constant_values=1)
             else:
-                return self.bandpath.cartesian_kpts()
+                return np.array(self.kpts_car)
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -619,19 +680,18 @@ class BrillouinZone():
             * Special k-point coordinates (as list of ndarray, or as list of sub-lists of ndarray for each segment).
         """
 
-        sections = parse_path_string(self.bandpath.path)
-
         if coords == 'red':
+            sub_lists = [[np.array(self.high_symmetry_points[label]) for label in section] for section in self.path_sections]
             if merge_sections:
-                return np.array([self.special_points[label] for section in sections for label in section])
+                return np.concatenate(sub_lists)
             else:
-                return [[self.special_points[label] for label in section] for section in sections]
+                return sub_lists
         elif coords == 'car':
-            reciprocal_cell = self.cell.reciprocal()
+            sub_lists = [[np.matmul(self.high_symmetry_points[label], self.rcell) for label in section] for section in self.path_sections]
             if merge_sections:
-                return np.array([reciprocal_cell.cartesian_positions(self.special_points[label]) for section in sections for label in section])
+                return np.concatenate(sub_lists)
             else:
-                return [[reciprocal_cell.cartesian_positions(self.special_points[label]) for label in section] for section in sections]
+                return sub_lists
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -712,12 +772,10 @@ class BrillouinZone():
             * (list) Path's special k-point labels.
         """
 
-        labels_sections = parse_path_string(self.bandpath.path)
-
-        labels_list = [label for labels in labels_sections for label in labels]
+        labels_list = [label for labels in self.path_sections for label in labels]
 
         if merge_sections:
-            sections_lengths = [len(labels) for labels in labels_sections]
+            sections_lengths = [len(labels) for labels in self.path_sections]
             sections_lengths.pop()
 
             if len(sections_lengths) > 0:
@@ -728,18 +786,6 @@ class BrillouinZone():
                     labels_list.pop(k)
 
         return labels_list
-
-
-
-    def path_labels(self):
-        """
-        Obtain list of path segment labels, where each segment is stored in a sub-list.
-
-        Output:
-            * (list of sub-lists) Path's segment labels.
-        """
-
-        return parse_path_string(self.bandpath.path)
 
 
 
@@ -757,7 +803,7 @@ class BrillouinZone():
             * (ndarray) Collinear k-point distances along the path.
         """
 
-        rlat = self.cell.reciprocal()[:]
+        rlat = self.rcell
 
         if sym_car is None:
             kpoints_indices = list(range(len(kpoints_car)))
