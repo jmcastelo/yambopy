@@ -338,10 +338,15 @@ class YamboQPDB():
         #interpolate the dft eigenvalues
         kpoints = lattice.red_kpoints
         sym_rec  = lattice.sym_rec
-        symrel = [sym for sym,trev in zip(lattice.sym_rec_red,lattice.time_rev_list) if trev==False ]
-        time_rev = True
-
-        #band_kpoints_rlu = path.get_klist()[:,:3]
+        if not lattice.mag_syms:
+            symrel = [sym for sym,trev in zip(lattice.sym_rec_red,lattice.time_rev_list) if trev==False ]
+            trev_for_interp = lattice.time_rev
+        # Handle special case of mag_sys + trev (e.g. SOC + ferromagnet, etc)
+        elif lattice.time_rev:
+            symrel = lattice.sym_rec_red
+            trev_for_interp=False
+        
+        # band_kpoints_rlu = path.get_klist()[:,:3]
         band_kpoints_rlu = bz.kpoints(coords='red')
 
         # Obtain quantities in cc needed for plot (since interpolation wants rlu)
@@ -356,8 +361,8 @@ class YamboQPDB():
               print('Spin-polarized bands DFT')
               eigens_up = self.eigenvalues_dft[np.newaxis,:,:,0]
               eigens_dw = self.eigenvalues_dft[np.newaxis,:,:,1]
-              skw_up = SkwInterpolator(lpratio,kpoints,eigens_up,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
-              skw_dw = SkwInterpolator(lpratio,kpoints,eigens_dw,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
+              skw_up = SkwInterpolator(lpratio,kpoints,eigens_up,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
+              skw_dw = SkwInterpolator(lpratio,kpoints,eigens_dw,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
               dft_eigens_up_kpath = skw_up.interp_kpts(band_kpoints_rlu).eigens[0]
               dft_eigens_dw_kpath = skw_dw.interp_kpts(band_kpoints_rlu).eigens[0]
 
@@ -371,7 +376,7 @@ class YamboQPDB():
            else:
               print('No spin-polarized bands DFT')
               eigens  = self.eigenvalues_dft[np.newaxis,:]
-              skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
+              skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
               #kpoints_path = path.get_klist()[:,:3]
               dft_eigens_kpath = skw.interp_kpts(band_kpoints_rlu).eigens[0]
               if valence: kwargs['fermie'] = np.max(dft_eigens_kpath[:,:valence])
@@ -391,8 +396,8 @@ class YamboQPDB():
                    eigens_up[0,ik,:], eigens_dw[0,ik,:] = sorted(aux_up[0,ik,:]), sorted(aux_dw[0,ik,:])
                #end sorting
 
-               skw_up = SkwInterpolator(lpratio,kpoints,eigens_up,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
-               skw_dw = SkwInterpolator(lpratio,kpoints,eigens_dw,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
+               skw_up = SkwInterpolator(lpratio,kpoints,eigens_up,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
+               skw_dw = SkwInterpolator(lpratio,kpoints,eigens_dw,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
                #kpoints_path = path.get_klist()[:,:3]
                qp_eigens_up_kpath = skw_up.interp_kpts(band_kpoints_rlu).eigens[0]
                qp_eigens_dw_kpath = skw_dw.interp_kpts(band_kpoints_rlu).eigens[0]
@@ -411,7 +416,7 @@ class YamboQPDB():
                for ik in range(self.nkpoints):
                    eigens[0,ik,:] = sorted(aux[0,ik,:])
                #end sorting
-               skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
+               skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
                #kpoints_path = path.get_klist()[:,:3]
                qp_eigens_kpath = skw.interp_kpts(band_kpoints_rlu).eigens[0]
                if valence: kwargs['fermie'] = np.max(qp_eigens_kpath[:,:valence])
@@ -423,7 +428,7 @@ class YamboQPDB():
             qp_z_kpath = None
             if 'Z' in what:
                 eigens = self.z[np.newaxis,:]
-                skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,time_rev,verbose=verbose)
+                skw = SkwInterpolator(lpratio,kpoints,eigens,fermie,nelect,cell,symrel,trev_for_interp,verbose=verbose)
                 #kpoints_path = path.get_klist()[:,:3]
                 qp_z_kpath = skw.interp_kpts(band_kpoints_rlu).eigens[0]
 

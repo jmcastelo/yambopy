@@ -11,6 +11,7 @@ Do pre/post-processing, data analysis and plotting for yambo and quantum espress
 - Yambo wiki: http://wiki.yambo-code.eu/
 - Yambo Github page [download yambo & yambopy]: https://github.com/yambo-code/
 
+Yambopy is distributed under the GPL 2.0 license (same as the Yambo code).
 
 Documentation
 -------------
@@ -75,13 +76,15 @@ Requirements
 - scipy: https://www.scipy.org/
 - matplotlib: http://matplotlib.org/
 - netCDF4: http://unidata.github.io/netcdf4-python/
+- h5py: https://www.h5py.org/
 - lxml: https://lxml.de/
 - pyyaml: https://pyyaml.org/
 - monty: https://pypi.org/project/monty/
 - scikit-learn: https://pypi.org/project/scikit-learn/
+- tqdm: https://pypi.org/project/tqdm/
 
 Yambopy works for the following DFT/MBPT codes:
-- yambo (>5.0.0): https://www.yambo-code.eu/
+- yambo (>=5.0): https://www.yambo-code.eu/
 - Quantum Espresso (optional): http://www.quantum-espresso.org/
 
 Troubleshooting, bugs and questions
@@ -117,6 +120,8 @@ Active contributors:
 - Riccardo Reho
 - Michele Re Fiorentin
 - Mike Nico Pionteck
+- Yuncheng Mao
+- Martino Silvetti
 - You if you want to share your scripts!
 
 Past contributors:
@@ -133,6 +138,24 @@ If you want to contribute, we suggest the following steps:
 1. Fork this repository
 2. Implement and test your new feature(s) in the forked repo
 3. Create a pull request in order to include your development in the official code
+
+How to cite
+-----------
+If yambopy helped you with your data analysis, workflow management of figure preparation, you can consider citing us.
+
+The way to do so in BibTeX format is the following (or simply type `yambopy cite`):
+
+```
+@misc{yambopy, 
+      author = {Paleari, Fulvio and Molina-Sánchez, Alejandro and Nalabothula, Muralidhar and Reho, Riccardo and Bonacci, Miki and Castelo, José M. and Cervantes-Villanueva, Jorge and Pionteck, Mike and Silvetti, Martino and Attaccalite, Claudio and Pereira Coutada Miranda, Henrique},
+      title = {Yambopy},
+      month = mar,
+      year = 2025,
+      publisher = {Zenodo},
+      version = {0.4.0}, 
+      doi = {10.5281/zenodo.15012962},
+      url = {https://doi.org/10.5281/zenodo.15012962}, }
+```
 
 Acknowledgements
 ----------------
