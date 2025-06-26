@@ -61,6 +61,8 @@ class BrillouinZone:
             * parameters: (dict) Dictionary with lattice parameters. (e.g. {'a': 0.123, 'c': 0.321})
             * path: (string) Piecewise special k-point path in the Brillouin zone. Defaults to standard path. (e.g. 'GMKGALHA,LM,KH')
             * extra_points: (dict) Dictionary defining extra special k-points to be used in the path. May overwrite pre-existing special k-points. (e.g. {'M': [0, 0.5, 0], 'K': [1/3, 1/3, 0.0]}
+            * npoints: (int) Number of k-points along the path, incompatible with 'density' option.
+            * density: (float) Density of k-points (units: 1/Angstrom), incompatible with 'npoints' option.
         """
 
         # Check if valid Bravais-lattice index
@@ -95,6 +97,8 @@ class BrillouinZone:
             'parameters' : parameters,
             'path': path_string,
             'extra_points': extra_points,
+            'npoints': npoints,
+            'density': density
         }
 
         # Set parameters
@@ -593,7 +597,7 @@ class BrillouinZone:
         Construct a new object of this class, given a dictionary with all arguments needed.
         """
 
-        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'])
+        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'], npoints=args['npoints'], density=arga['density'])
 
 
 
