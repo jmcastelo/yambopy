@@ -190,7 +190,7 @@ class Matdyn(object):
                     eivq[indexes] = r
                 self.eiv[nq] = eivq
 
-    def plot_eigen(self,path=[]):
+    def plot_eigen_bak(self,path=[]):
         """ plot the phonon frequencies using matplotlib
         """
         import matplotlib.pyplot as plt
@@ -212,6 +212,26 @@ class Matdyn(object):
            plt.plot(range(self.nqpoints),eig[:,ib], 'r-', lw=2)
         plt.show()
 
+    def plot_eigen(self,bz):
+        """ plot the phonon frequencies using matplotlib
+        """
+        import matplotlib.pyplot as plt
+
+        spoints_distances = bz.special_kpoints_distances(True)
+
+        plt.xticks(spoints_distances)
+
+        for xcoord in spoints_distances:
+            plt.axvline(xcoord)
+
+        plt.ylabel('\\omega (cm$^{-1}$)')
+
+        #plot bands
+        eig = np.array(self.eig)
+        for ib in range(self.nmodes):
+           plt.plot(range(self.nqpoints),eig[:,ib], 'r-', lw=2)
+        plt.show()
+
     def get_phonon_freq(self,nq,n,unit="eV"):
         """
         Get the value of the phonon frequency
@@ -221,7 +241,7 @@ class Matdyn(object):
         if   unit == "eV":
             factor = cm1toeV
         elif unit == "Ha":
-            factor = cm1toeV*eV2ha
+            factor = cm1toeV*ev2ha
         elif unit == "THz":
             factor = cm12Thz
         elif unit == "cm-1":
