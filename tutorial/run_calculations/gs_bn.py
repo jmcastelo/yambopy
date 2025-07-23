@@ -10,6 +10,7 @@ from schedulerpy import *
 # from math import sqrt
 from yambopy import BrillouinZone
 
+ibrav = 4
 kpoints      = [6,6,1]
 kpoints_nscf = [6,6,1]
 kpoints_double = [24,24,1]
@@ -29,7 +30,7 @@ prefix = 'bn'
 #            [[0.0, 0.0, 0.0],r'$\Gamma$']], [int(npoints*2),int(npoints),int(sqrt(5)*npoints)])
 
 # Brillouin zone
-bz = BrillouinZone(4, {'a': alat, 'c': layer_separation}, 'GMKG', npoints=100)
+bz = BrillouinZone(ibrav, {'a': alat, 'c': layer_separation}, 'GMKG', npoints=100)
 
 # scheduler
 scheduler = Scheduler.factory
@@ -54,7 +55,7 @@ def get_inputfile():
     qe.system['occupations'] = "'fixed'"
     qe.system['nat'] = 2
     qe.system['ntyp'] = 2
-    qe.system['ibrav'] = 4
+    qe.system['ibrav'] = ibrav
     qe.kpoints = [9, 9, 1]
     qe.electrons['conv_thr'] = 1e-10
     return qe
@@ -209,22 +210,22 @@ if __name__ == "__main__":
 
     if args.relax:
         print("running relax:")
-        qe_run = scheduler() 
+        qe_run = scheduler()
         qe_run.add_command("cd relax; mpirun -np %d %s -inp %s.relax > relax.log"%(nthreads,pw,prefix))  #relax
         qe_run.run()
-        update_positions('relax','scf') 
+        update_positions('relax','scf')
         print("done!")
 
     if args.scf:
         print("running scf:")
-        qe_run = scheduler() 
+        qe_run = scheduler()
         qe_run.add_command("cd scf; mpirun -np %d %s -inp %s.scf > scf.log"%(nthreads,pw,prefix))  #scf
         qe_run.run()
         print("done!")
    
     if args.nscf: 
         print("running nscf:")
-        qe_run = scheduler() 
+        qe_run = scheduler()
         qe_run.add_command("cp -r scf/%s.save nscf/"%prefix) #nscf
         qe_run.add_command("cd nscf; mpirun -np %d %s -nk %d -inp %s.nscf > nscf.log"%(nthreads,pw,nthreads,prefix)) #nscf
         qe_run.run()
@@ -232,7 +233,7 @@ if __name__ == "__main__":
 
     if args.nscf_double: 
         print("running nscf_double:")
-        qe_run = scheduler() 
+        qe_run = scheduler()
         qe_run.add_command("cp -r scf/%s.save nscf_double/"%prefix) #nscf
         qe_run.add_command("cd nscf_double; mpirun -np %d %s -inp %s.nscf > nscf_double.log"%(nthreads,pw,prefix)) #nscf
         qe_run.run()
@@ -240,7 +241,7 @@ if __name__ == "__main__":
     
     if args.phonon:
         print("running phonon:")
-        qe_run = scheduler() 
+        qe_run = scheduler()
         qe_run.add_command("cp -r scf/%s.save phonon/"%prefix)
         qe_run.add_command("cd phonon; mpirun -np %d %s -inp %s.ph > phonon.log"%(nthreads,ph,prefix)) #phonon
         qe_run.add_command("dynmat.x < %s.dynmat > dynmat.log"%prefix) #matdyn
@@ -248,7 +249,7 @@ if __name__ == "__main__":
         print("done!")
 
     if args.dispersion:
-        qe_run = scheduler() 
+        qe_run = scheduler()
 
         #q2r
         disp = DynmatIn()

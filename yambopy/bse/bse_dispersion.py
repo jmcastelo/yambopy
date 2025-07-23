@@ -20,6 +20,7 @@ from yambopy.lattice import replicate_red_kmesh, calculate_distances, car_red, r
 from yambopy.kpoints import get_path
 from yambopy.tools.funcs import gaussian, lorentzian
 from yambopy.tools.skw import SkwInterpolator
+from yambopy import YamboExcitonDB, BrillouinZone
 
 class ExcitonDispersion():
     """
