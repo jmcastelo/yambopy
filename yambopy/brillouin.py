@@ -626,7 +626,7 @@ class BrillouinZone:
 
 
 
-    def interpolate(self, npoints: int = None, density: float = None):
+    def interpolate_bak(self, npoints: int = None, density: float = None):
         if npoints is not None and density is not None:
             raise ValueError('You may define npoints or density, but not both.')
 
@@ -666,6 +666,58 @@ class BrillouinZone:
 
         self.kpts_car = [np.matmul(kpt, self.rcell) for kpt in self.kpts_red]
 
+    def interpolate(self, npoints: int = None, density: float = None):
+        if npoints is not None and density is not None:
+            raise ValueError('You may define npoints or density, but not both.')
+
+        length = sum(self.special_kpoints_distances(True))
+
+        if npoints is None:
+            if density is None:
+                density = 5
+            # npoints = int(round(length * 2 * np.pi * density))
+            npoints = int(round(length * density))
+
+        points = self.special_kpoints('red', False)
+        lengths = self.special_kpoints_distances(True)
+
+        self.kpts_red = []
+        self.kpts_car = []
+        x = []
+        x0 = 0
+        i = 1
+
+        for spoints in points:
+            kpoints = np.array(spoints)
+            dists = kpoints[1:] - kpoints[:-1]
+
+            kpts_red = []
+
+            for kpt, dist, l in zip(kpoints[:-1], dists, lengths[i:i+len(kpoints)-1]):
+                diff = length - x0
+                if abs(diff) < 1e-6:
+                    n = 0
+                else:
+                    n = max(2, int(round(l * (npoints - len(x)) / diff)))
+
+                for t in np.linspace(0, 1, n)[:-1]:
+                    kpts_red.append(kpt + t * dist)
+                    x.append(x0 + t * l)
+
+                x0 += l
+
+            i += len(kpoints)-1
+
+            if len(kpoints) > 0:
+                kpts_red.append(kpoints[-1])
+                # x.append(x0)
+
+            if len(kpts_red) == 0:
+                kpts_red = np.empty((0, 3))
+
+            self.kpts_car.append([np.matmul(kpt, self.rcell) for kpt in kpts_red])
+            self.kpts_red.append(kpts_red)
+
 
 
     def kpoints(self, coords='red', qe=False):
@@ -684,15 +736,17 @@ class BrillouinZone:
         # Pad kpts ndarray of shape (nktps, 3) with a single value 1 as last element of 2nd dimension, so new shape is (nkpts, 4)
 
         if coords == 'red':
+            kpts_red = np.concatenate(self.kpts_red)
             if qe:
-                return np.pad(self.kpts_red, [(0, 0), (0, 1)], 'constant', constant_values=1)
+                return np.pad(kpts_red, [(0, 0), (0, 1)], 'constant', constant_values=1)
             else:
-                return np.array(self.kpts_red)
+                return np.array(kpts_red)
         elif coords == 'car':
+            kpts_car = np.concatenate(self.kpts_car)
             if qe:
-                return np.pad(self.kpts_car, [(0, 0), (0, 1)], 'constant', constant_values=1)
+                return np.pad(kpts_car, [(0, 0), (0, 1)], 'constant', constant_values=1)
             else:
-                return np.array(self.kpts_car)
+                return np.array(kpts_car)
         else:
             raise ValueError(f"coords: {coords} not supported.")
 
@@ -736,28 +790,36 @@ class BrillouinZone:
             * (ndarray) Distances of k-points on the path.
         """
 
-        spoints_piecewise = self.special_kpoints('car')
-        kpoints = self.kpoints('car')
+        # spoints_piecewise = self.special_kpoints('car')
+        # kpoints = self.kpoints('car')
 
-        spoints_distance = 0
-        kpoints_distances = []
+        # spoints_distance = 0
+        # kpoints_distances = []
 
-        nk = 0
+        # nk = 0
 
-        for spoints in spoints_piecewise:
-            for ns in range(len(spoints) - 1):
-                while nk < len(kpoints):
-                    if np.allclose(kpoints[nk], spoints[ns + 1]):
-                        spoints_distance += np.linalg.norm(spoints[ns + 1] - spoints[ns])
-                        kpoints_distances.append(spoints_distance)
-                        nk += 1
-                        break
-                    if isbetween(spoints[ns], spoints[ns + 1], kpoints[nk]):
-                        kpoints_distances.append(spoints_distance + np.linalg.norm(kpoints[nk] - spoints[ns]))
-                        nk += 1
+        # for spoints in spoints_piecewise:
+        #     for ns in range(len(spoints) - 1):
+        #         while nk < len(kpoints):
+        #             if np.allclose(kpoints[nk], spoints[ns + 1]):
+        #                 spoints_distance += np.linalg.norm(spoints[ns + 1] - spoints[ns])
+        #                 kpoints_distances.append(spoints_distance)
+        #                 nk += 1
+        #                 break
+        #             if isbetween(spoints[ns], spoints[ns + 1], kpoints[nk]):
+        #                 kpoints_distances.append(spoints_distance + np.linalg.norm(kpoints[nk] - spoints[ns]))
+        #                 nk += 1
 
-        return np.array(kpoints_distances)
+        # return np.array(kpoints_distances)
 
+        kpt_dists = [0]
+        dist = 0
+        for kpts in self.kpts_car:
+            for nk in range(len(kpts) - 1):
+                dist += np.linalg.norm(kpts[nk + 1] - kpts[nk])
+                kpt_dists.append(dist)
+
+        return np.array(kpt_dists)
 
 
     def special_kpoints_distances(self, merge_sections=False):
