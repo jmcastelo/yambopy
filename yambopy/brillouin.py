@@ -15,8 +15,8 @@ def ibrav_required_parameters():
         3: ['a'],
         -3: ['a'],
         4: ['a', 'c'],
-        5: ['a', 'alpha'],
-        # -5: ['a', 'gamma'],
+        5: ['a', 'gamma'],
+        -5: ['a', 'gamma'],
         6: ['a', 'c'],
         7: ['a', 'c'],
         8: ['a', 'b', 'c'],
@@ -179,7 +179,7 @@ def get_lattice_data(ibrav:int, parameters=None):
 
         # RHL
         case 5:
-            cs = cos(radians(alpha))
+            cs = cos(radians(gamma))
 
             tx = sqrt((1 - cs) / 2)
             ty = sqrt((1 - cs) / 6)
@@ -191,10 +191,10 @@ def get_lattice_data(ibrav:int, parameters=None):
 
             cell = np.array([v1, v2, v3])
 
-            if 0 < alpha < 90:
+            if 0 < gamma < 90:
                 variant = 'RHL1'
 
-                eta = (1 + 4 * cos(radians(alpha))) / (2 + 4 * cos(radians(alpha)))
+                eta = (1 + 4 * cos(radians(gamma))) / (2 + 4 * cos(radians(gamma)))
                 nu = 3 / 4 - eta / 2
 
                 high_symmetry_points = {
@@ -214,10 +214,10 @@ def get_lattice_data(ibrav:int, parameters=None):
 
                 default_path = 'GLB1,BZGX,QFP1Z,LP'
 
-            elif 90 < alpha < 120:
+            elif 90 < gamma < 120:
                 variant = 'RHL2'
 
-                eta = 1 / (2 * tan(radians(alpha / 2)) ** 2)
+                eta = 1 / (2 * tan(radians(gamma / 2)) ** 2)
                 nu = 3 / 4 - eta / 2
 
                 high_symmetry_points = {
@@ -236,16 +236,68 @@ def get_lattice_data(ibrav:int, parameters=None):
             else:
                 raise ValueError('Invalid alpha value')
 
-        # case -5:
-        #     a /= sqrt(3)
-        #     c = cos(radians(gamma))
-        #     ty = sqrt((1 - c) / 6)
-        #     tz = sqrt((1 + 2 * c) / 3)
-        #     u = tz - 2 * sqrt(2) * ty
-        #     v = tz + sqrt(2) * ty
-        #     v1 = [a * u, a * v, a * v]
-        #     v2 = [a * v, a * u, a * v]
-        #     v3 = [a * v, a * v, a * u]
+        # RHL
+        case -5:
+            a /= sqrt(3)
+
+            cs = cos(radians(gamma))
+
+            ty = sqrt((1 - cs) / 6)
+            tz = sqrt((1 + 2 * cs) / 3)
+
+            u = tz - 2 * sqrt(2) * ty
+            v = tz + sqrt(2) * ty
+
+            v1 = [a * u, a * v, a * v]
+            v2 = [a * v, a * u, a * v]
+            v3 = [a * v, a * v, a * u]
+
+            cell = np.array([v1, v2, v3])
+
+            if 0 < gamma < 90:
+                variant = 'RHL1'
+
+                eta = (1 + 4 * cos(radians(gamma))) / (2 + 4 * cos(radians(gamma)))
+                nu = 3 / 4 - eta / 2
+
+                high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'B': [eta, 1 / 2, 1 - eta],
+                    'B1': [1 / 2, 1 - eta, eta - 1],
+                    'F': [1 / 2, 1 / 2, 0],
+                    'L': [1 / 2, 0, 0],
+                    'L1': [0, 0, -1 / 2],
+                    'P': [eta, nu, nu],
+                    'P1': [1 - nu, 1 - nu, 1 - eta],
+                    'P2': [nu, nu, eta - 1],
+                    'Q': [1 - nu, nu, 0],
+                    'X': [nu, 0, -nu],
+                    'Z': [1 / 2, 1 / 2, 1 / 2]
+                }
+
+                default_path = 'GLB1,BZGX,QFP1Z,LP'
+
+            elif 90 < gamma < 120:
+                variant = 'RHL2'
+
+                eta = 1 / (2 * tan(radians(gamma / 2)) ** 2)
+                nu = 3 / 4 - eta / 2
+
+                high_symmetry_points = {
+                    'G': [0, 0, 0],
+                    'F': [0, 1 / 2, -1 / 2],
+                    'L': [0, 1 / 2, 0],
+                    'P': [1 - nu, 1 - nu, -nu],
+                    'P1': [nu - 1, nu, nu - 1],
+                    'Q': [eta, eta, eta],
+                    'Q1': [-eta, 1 - eta, -eta],
+                    'Z': [1 / 2, 1 / 2, -1 / 2]
+                }
+
+                default_path = 'GPZQGFP1Q1LZ'
+
+            else:
+                raise ValueError('Invalid alpha value')
 
         # TET
         case 6:

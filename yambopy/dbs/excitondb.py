@@ -117,9 +117,10 @@ class YamboExcitonDB(object):
                 r_residual = rer+imr*I
 
             car_qpoint = None
-            if 'Q-point' in list(database.variables.keys()):
+            # if 'Q-point' in list(database.variables.keys()):
+            if 'BS_Q' in list(database.variables.keys()):
                 # Finite momentum
-                car_qpoint = database.variables['Q-point'][:]/lattice.alat
+                car_qpoint = database.variables['BS_Q'][:] / lattice.alat
             if Qpt=="1": car_qpoint = np.zeros(3)
 
             #energies
@@ -1172,7 +1173,7 @@ class YamboExcitonDB(object):
                 if energies.nbands < self.mband - self.start_band:
                     raise ValueError("[ERROR] QP range less than BSE range!")
                 elif energies.nbands == self.mband - self.start_band:
-                    eigs = energies.eigenvalues_QP  # Assuming exact same range
+                    eigs = energies.eigenvalues_qp  # Assuming exact same range
                 else:
                     eigs = energies.eigenvalues_qp[:, self.start_band:self.mband]
 
