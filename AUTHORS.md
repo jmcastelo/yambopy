@@ -5,7 +5,6 @@ Project Authors
 
 * Paleari, Fulvio, Istituto Nanoscienze (Italy)
 * Molina-Sánchez, Alejandro, Universitat de València (Spain)
-* Nalabothula, Muralidhar, University of Luxembourg (Luxembourg)
 * Reho, Riccardo, Utrecht University (Netherlands)
 * Bonacci, Miki, Paul Scherrer Institute (Switzerland)
 * Castelo, José, Universitat de València (Spain)
@@ -14,6 +13,7 @@ Project Authors
 * Silvetti, Martino, University of Modena and Reggio Emilia (Italy)
 * Attaccalite, Claudio, CNRS/Aix-Marseille University (France)
 * Pereira Coutada Miranda, Henrique, VASP Software (Austria)
+* Myrta Grüning, Queen's University, Belfast (UK)
 
 ## All other contributors and their affiliations:
 
@@ -23,4 +23,8 @@ Project Authors
 * Davide Romanin
 * Daniel Murphy
 * Yuncheng Mao
-
+* Marco D'Alessandro
+* Daniel Santos Stone
+* Ignacio Alliati 
+* Muralidhar Nalabothula
+* Anna Romani

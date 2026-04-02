@@ -3,13 +3,11 @@
 #
 # This file is part of the yambopy project
 #
-from yambopy import *
-from yambopy.plot import *
+from netCDF4 import Dataset
 from yambopy.units import ha2ev,fs2aut,speed_of_light
 import numpy as np
 import sys
 import os
-
 #
 # This class reads all data from the ndb.Nonlinear database
 # and its fragment ndb.Nonlinear_fragment_xxx
@@ -40,14 +38,30 @@ class YamboNLDB(object):
 
     def read_Efield(self,database,RT_step,n):
          efield={}
-         efield["name"]       =database.variables['Field_Name_'+str(n)][...].tostring().decode().strip()
+         efield["name"]       =database.variables['Field_Name_'+str(n)][...].tobytes().decode().strip()
          efield["versor"]     =database.variables['Field_Versor_'+str(n)][:].astype(np.double)
          efield["intensity"]  =database.variables['Field_Intensity_'+str(n)][0].astype(np.double)
-         efield["damping"]    =database.variables['Field_Damping_'+str(n)][0].astype(np.double)
-         efield["freq_range"] =database.variables['Field_Freq_range_'+str(n)][:].astype(np.double)
-         efield["freq_steps"] =database.variables['Field_Freq_steps_'+str(n)][:].astype(np.double)
-         efield["freq_step"]  =database.variables['Field_Freq_step_'+str(n)][0].astype(np.double)
+         try:
+            efield["damping"]    =database.variables['Field_FWHM_'+str(n)][0].astype(np.double)
+         except:      
+            efield["damping"]    =database.variables['Field_Damping_'+str(n)][0].astype(np.double)
+         try:
+             efield["freq_range"] =database.variables['Field_Freq_range_'+str(n)][:].astype(np.double)
+         except:
+             efield["freq_range"] =database.variables['Field_Freq_'+str(n)][:].astype(np.double)
+         try:
+             efield["freq_steps"] =database.variables['Field_Freq_steps_'+str(n)][:].astype(np.double)
+         except:
+             efield["freq_steps"] =1.0
+         try:
+             efield["freq_step"]  =database.variables['Field_Freq_step_'+str(n)][0].astype(np.double)
+         except:
+             efield["freq_step"]  =0.0
          efield["initial_time"]  =database.variables['Field_Initial_time_'+str(n)][0].astype(np.double)
+         try:
+             efield["peak"]  =database.variables['Field_peak_'+str(n)][0].astype(np.double)
+         except:
+             efield["peak"]  =10.0
          #
          # set t_initial according to Yambo 
          #
@@ -64,7 +78,7 @@ class YamboNLDB(object):
         """
         Read all data from the database
         """
-        self.Gauge          = database.variables['GAUGE'][...].tostring().decode().strip()
+        self.Gauge          = database.variables['GAUGE'][...].tobytes().decode().strip()
         self.NE_steps       = database.variables['NE_steps'][0].astype('int')
         self.RT_step        = database.variables['RT_step'][0].astype(np.double)
         self.n_frequencies  = database.variables['n_frequencies'][0].astype('int')
@@ -90,8 +104,8 @@ class YamboNLDB(object):
         self.QP_ng_SH       = database.variables['QP_ng_SH'][0].astype('int')
         self.QP_ng_Sx       = database.variables['QP_ng_Sx'][0].astype('int')
         self.RAD_LifeTime   = database.variables['RAD_LifeTime'][0].astype(np.double)
-        self.Integrator     = database.variables['Integrator'][...].tostring().decode().strip()
-        self.Correlation    = database.variables['Correlation'][...].tostring().decode().strip()
+        self.Integrator     = database.variables['Integrator'][...].tobytes().decode().strip()
+        self.Correlation    = database.variables['Correlation'][...].tobytes().decode().strip()
         #
         # Time variables
         #
@@ -102,9 +116,15 @@ class YamboNLDB(object):
         # External fields
         # 
         self.Efield_general=[]
+        self.N_ext_fields=0
         for n in range(1,4):
-            efield=self.read_Efield(database,self.RT_step,n)
-            self.Efield_general.append(efield.copy())
+            try:
+                efield=self.read_Efield(database,self.RT_step,n)
+            except:
+                print("Field %d not found" % n)
+            else:
+                self.Efield_general.append(efield.copy())
+                self.N_ext_fields=self.N_ext_fields+1
 
         #
         # Read polarization and currect files 
@@ -152,7 +172,10 @@ class YamboNLDB(object):
             # Read only the first field for SHG
             # I don't need it in the pump-probe configuration
             efield=self.read_Efield(data_p_and_j,self.RT_step,1)
-            efield2=self.read_Efield(data_p_and_j,self.RT_step,2)
+            try:
+                efield2=self.read_Efield(data_p_and_j,self.RT_step,2)
+            except:
+                efield2=efield
             self.Efield.append(efield.copy())
             self.Efield2.append(efield2.copy())
 
