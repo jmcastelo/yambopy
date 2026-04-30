@@ -581,15 +581,10 @@ class BrillouinZone:
     Constructs interpolated paths in any of the existing Brillouin zones.
 
     Follows Quantum ESPRESSO's classification criterion (ibrav [1]).
-
-    In general, ASE framework (following Setyawan and Curtarolo's [2] standard) and QE may employ different direct/reciprocal basis vector conventions.
-    On each convention, high-symmetry k-points (a.k.a. special k-points) may be characterized by different coordinates.
-    Special k-points are obtained from ASE framework and transformed into QE representation criterion. (Ref. to derivation of transformation)
     Note: not all Bravais lattice indices (ibrav) are supported.
 
     References:
         [1]: https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm226
-        [2]: https://doi.org/10.1016/j.commatsci.2010.05.010
     """
 
     def __init__(self, ibrav: int, parameters=None, path_string=None, extra_points=None, npoints: int = None, density: float = None):
@@ -599,7 +594,7 @@ class BrillouinZone:
         Interpolation of k-points along the path can be performed, either setting the number of k-points or their density.
 
         Input:
-            * ibrav: (int) QE's Bravais lattice type index (1 to 12).
+            * ibrav: (int) QE's Bravais lattice type index (1 to 11, -3, -5, -9).
             * parameters: (dict) Dictionary with lattice parameters. (e.g. {'a': 0.123, 'c': 0.321})
             * path: (string) Piecewise special k-point path in the Brillouin zone. Defaults to standard path. (e.g. 'GMKGALHA,LM,KH')
             * extra_points: (dict) Dictionary defining extra special k-points to be used in the path. May overwrite pre-existing special k-points. (e.g. {'M': [0, 0.5, 0], 'K': [1/3, 1/3, 0.0]}
@@ -677,46 +672,6 @@ class BrillouinZone:
         return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'], npoints=args['npoints'], density=args['density'])
 
 
-
-    def interpolate_bak(self, npoints: int = None, density: float = None):
-        if npoints is not None and density is not None:
-            raise ValueError('You may define npoints or density, but not both.')
-
-        points = self.special_kpoints('red', True)
-        dists = points[1:] - points[:-1]
-        lengths = self.special_kpoints_distances(True)[1:]
-        length = sum(lengths)
-
-        if npoints is None:
-            if density is None:
-                density = 5
-            # npoints = int(round(length * 2 * np.pi * density))
-            npoints = int(round(length * density))
-
-        self.kpts_red = []
-        x0 = 0
-        x = []
-
-        for kpt, dist, l in zip(points[:-1], dists, lengths):
-            diff = length - x0
-            if abs(diff) < 1e-6:
-                n = 0
-            else:
-                n = max(2, int(round(l * (npoints - len(x)) / diff)))
-
-            for t in np.linspace(0, 1, n)[:-1]:
-                self.kpts_red.append(kpt + t * dist)
-                x.append(x0 + t * l)
-
-            x0 += l
-
-        if len(points) > 0:
-            self.kpts_red.append(points[-1])
-
-        if len(self.kpts_red) == 0:
-            self.kpts_red = np.empty((0, 3))
-
-        self.kpts_car = [np.matmul(kpt, self.rcell) for kpt in self.kpts_red]
 
     def interpolate(self, npoints: int = None, density: float = None):
         if npoints is not None and density is not None:
@@ -841,28 +796,6 @@ class BrillouinZone:
         Output:
             * (ndarray) Distances of k-points on the path.
         """
-
-        # spoints_piecewise = self.special_kpoints('car')
-        # kpoints = self.kpoints('car')
-
-        # spoints_distance = 0
-        # kpoints_distances = []
-
-        # nk = 0
-
-        # for spoints in spoints_piecewise:
-        #     for ns in range(len(spoints) - 1):
-        #         while nk < len(kpoints):
-        #             if np.allclose(kpoints[nk], spoints[ns + 1]):
-        #                 spoints_distance += np.linalg.norm(spoints[ns + 1] - spoints[ns])
-        #                 kpoints_distances.append(spoints_distance)
-        #                 nk += 1
-        #                 break
-        #             if isbetween(spoints[ns], spoints[ns + 1], kpoints[nk]):
-        #                 kpoints_distances.append(spoints_distance + np.linalg.norm(kpoints[nk] - spoints[ns]))
-        #                 nk += 1
-
-        # return np.array(kpoints_distances)
 
         kpt_dists = [0]
         dist = 0
