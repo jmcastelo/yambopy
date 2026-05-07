@@ -169,8 +169,10 @@ def get_lattice_data(ibrav:int, parameters=None):
             high_symmetry_points = {
                 'G': [0, 0, 0],
                 'A': [0, 0, 1 / 2],
-                'H': [2 / 3, -1 / 3, 1 / 2],
-                'K': [2 / 3, -1 / 3, 0],
+                # 'H': [2 / 3, -1 / 3, 1 / 2],
+                'H': [1 / 3, 1 / 3, 1 / 2],
+                # 'K': [2 / 3, -1 / 3, 0],
+                'K': [1 / 3, 1 / 3, 0],
                 'L': [1 / 2, 0, 1 / 2],
                 'M': [1 / 2, 0, 0]
             }
@@ -587,7 +589,7 @@ class BrillouinZone:
         [1]: https://www.quantum-espresso.org/Doc/INPUT_PW.html#idm226
     """
 
-    def __init__(self, ibrav: int, parameters=None, path_string=None, extra_points=None, npoints: int = None, density: float = None):
+    def __init__(self, ibrav: int, parameters=None, path_string=None, extra_points=None, npoints: int = None, density: float = None, intervals=None):
         """
         Initializes the Brillouin zone of a selected lattice type, with given required parameters.
         Path can be determined via special k-points labels, corresponding to high symmetry points of the BZ and/or user-given k-point labels.
@@ -598,8 +600,9 @@ class BrillouinZone:
             * parameters: (dict) Dictionary with lattice parameters. (e.g. {'a': 0.123, 'c': 0.321})
             * path: (string) Piecewise special k-point path in the Brillouin zone. Defaults to standard path. (e.g. 'GMKGALHA,LM,KH')
             * extra_points: (dict) Dictionary defining extra special k-points to be used in the path. May overwrite pre-existing special k-points. (e.g. {'M': [0, 0.5, 0], 'K': [1/3, 1/3, 0.0]}
-            * npoints: (int) Number of k-points along the path, incompatible with 'density' option.
-            * density: (float) Density of k-points (units: 1/Angstrom), incompatible with 'npoints' option.
+            * npoints: (int) Number of k-points along the path, incompatible with 'density' and 'intervals' options.
+            * density: (float) Density of k-points (units: 1/Angstrom), incompatible with 'npoints' and 'intervals' options.
+            * intervals: (list) Number of k-points along each path segment (defined by two consecutive letters).
         """
 
         # Check and get lattice data
@@ -640,7 +643,15 @@ class BrillouinZone:
             section_strings.append(''.join(section))
         self.path_string = ','.join(section_strings)
 
-        self.interpolate(npoints, density)
+        # Interpolate k-points along path
+
+        self.kpts_red = []
+        self.kpts_car = []
+
+        if intervals is not None:
+            self.interpolate_intervals(intervals)
+        else:
+            self.interpolate(npoints, density)
 
         # Save arguments as dictionary
 
@@ -650,7 +661,8 @@ class BrillouinZone:
             'path': path_string,
             'extra_points': extra_points,
             'npoints': npoints,
-            'density': density
+            'density': density,
+            'intervals': intervals
         }
 
 
@@ -669,11 +681,19 @@ class BrillouinZone:
         Construct a new object of this class, given a dictionary with all arguments needed.
         """
 
-        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'], npoints=args['npoints'], density=args['density'])
+        return cls(ibrav=args['ibrav'], parameters=args['parameters'], path_string=args['path_string'], extra_points=args['extra_points'], npoints=args['npoints'], density=args['density'], intervals=args['intervals'])
 
 
 
     def interpolate(self, npoints: int = None, density: float = None):
+        """
+        Defines a set of evenly-spaced k-points along the path and stores them in two lists (reduced and Cartesian).
+
+        Input:
+            * npoints: Integer number of points to interpolate along the path.
+            * density: Density of points along the path (either set this input argument or npoints).
+        """
+
         if npoints is not None and density is not None:
             raise ValueError('You may define npoints or density, but not both.')
 
@@ -721,6 +741,46 @@ class BrillouinZone:
 
             if len(kpts_red) == 0:
                 kpts_red = np.empty((0, 3))
+
+            self.kpts_car.append([np.matmul(kpt, self.rcell) for kpt in kpts_red])
+            self.kpts_red.append(kpts_red)
+
+
+
+    def interpolate_intervals(self, intervals):
+        """
+        Defines a set of k-points along the path, with specific number of points on each segment, and stores them in two lists (reduced and Cartesian).
+
+        Input:
+            * intervals: List of integer numbers corresponding to the number of points along each path segment.
+        """
+
+        num_intervals = 0
+        for section in self.path_sections:
+            num_intervals += len(section) - 1
+        if num_intervals != len(intervals):
+            raise ValueError(f"Number of intervals ({len(intervals)}) does not match that specified by path string ({num_intervals}).")
+
+        points = self.special_kpoints('red', False)
+
+        self.kpts_red = []
+        self.kpts_car = []
+        i = 0
+
+        for spoints in points:
+            kpoints = np.array(spoints)
+            dists = kpoints[1:] - kpoints[:-1]
+
+            kpts_red = []
+
+            for kpt, dist in zip(kpoints, dists):
+                for t in np.linspace(0, 1, intervals[i], endpoint=False):
+                    kpts_red.append(kpt + t * dist)
+
+                i += 1
+
+            if len(kpoints) > 0:
+                kpts_red.append(kpoints[-1])
 
             self.kpts_car.append([np.matmul(kpt, self.rcell) for kpt in kpts_red])
             self.kpts_red.append(kpts_red)
