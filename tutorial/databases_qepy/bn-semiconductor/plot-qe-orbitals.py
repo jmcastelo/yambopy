@@ -1,4 +1,5 @@
-from qepy import Path,ProjwfcXML,ProjwfcIn
+from qepy import ProjwfcXML,ProjwfcIn
+from yambopy import BrillouinZone
 from math import sqrt
 
 # Matplotlib options
@@ -8,10 +9,8 @@ ax  = fig.add_axes( [ 0.12, 0.10, 0.70, 0.80 ])
 
 # k-points map
 npoints = 50
-path_kpoints = Path([ [[0.0, 0.0, 0.0],'$\Gamma$'],
-                      [[0.5, 0.0, 0.0],'M'],
-                      [[1./3,1./3,0.0],'K'],
-                      [[0.0, 0.0, 0.0],'$\Gamma$']], [int(npoints*2),int(npoints),int(sqrt(5)*npoints)])
+intervals = [int(npoints*2), int(npoints), int(sqrt(5)*npoints)]
+bz = BrillouinZone(ibrav=4, parameters={'a': 4.7, 'c': 12.0}, path_string='GMKG', intervals=intervals)
 
 # Class Projwfc
 # Class to run projwfc.x and create 
@@ -40,7 +39,7 @@ atom_2 = band.get_states_helper(atom_query=['B'])
 #n_val = 4
 #band.add_scissor(n_val,scissor)
 
-band.plot_eigen(ax,path_kpoints=path_kpoints,cmap='viridis',selected_orbitals=atom_1,selected_orbitals_2=atom_2)
+band.plot_eigen(ax,bz,cmap='viridis',selected_orbitals=atom_1,selected_orbitals_2=atom_2)
 
 # Plot colormap
 #

@@ -1,19 +1,18 @@
 from yambopy import YamboLatticeDB,YamboQPDB # Load yambo netcdf databases
-from qepy import Path                        # Define path in k-space
+from yambopy import BrillouinZone # Define path in k-space
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sqrt
 
-# Define path in reduced coordinates using Class Path
-npoints = 10
-path = Path([ [[  0.0,  0.0,  0.0],'$\Gamma$'],
-              [[  0.5,  0.0,  0.0],'M'],
-              [[1./3.,1./3.,  0.0],'K'],
-              [[  0.0,  0.0,  0.0],'$\Gamma$']], [int(npoints*2),int(npoints),int(sqrt(5)*npoints)] )
-
 # Read Lattice information from SAVE
 ## Note: we do not expand the kpts because QP database is in the IBZ
-lat  = YamboLatticeDB.from_db_file(filename='SAVE/ns.db1',Expand=False)
+lat = YamboLatticeDB.from_db_file(filename='SAVE/ns.db1',Expand=False)
+
+# Define path in reduced coordinates using BrillouinZone class
+npoints = 10
+intervals = [int(npoints*2), int(npoints), int(sqrt(5)*npoints)]
+bz = BrillouinZone(4, {'a': lat.alat[0], 'c': lat.alat[2]/lat.alat[0]}, 'GMKG', intervals=intervals)
+
 # Read QP database
 ydb  = YamboQPDB.from_db(filename='ndb.QP',folder='qp-gw')
 n_top_vb = 3 # Top valence band index starting from 0
@@ -31,7 +30,8 @@ ydb.plot_scissor_ax(ax,n_top_vb+1)
 plt.show()
 
 # 2. Plot of KS and QP eigenvalues NOT interpolated along the path
-ks_bs_0, qp_bs_0 = ydb.get_bs_path(lat,path)
+
+ks_bs_0, qp_bs_0 = ydb.get_bs_path(lat,bz)
 
 fig = plt.figure(figsize=(4,5))
 ax = fig.add_axes( [ 0.20, 0.20, 0.70, 0.70 ])
@@ -43,7 +43,7 @@ plt.show()
 
 # 3. Interpolation of KS and QP eigenvalues
 
-ks_bs, qp_bs = ydb.interpolate(lat,path,what='QP+KS',lpratio=20)
+ks_bs, qp_bs = ydb.interpolate(lat,bz,what='QP+KS',lpratio=20)
 
 fig = plt.figure(figsize=(4,5))
 ax = fig.add_axes( [ 0.20, 0.20, 0.70, 0.70 ])

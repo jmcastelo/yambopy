@@ -1,14 +1,12 @@
-from qepy import  Path,ProjwfcXML,ProjwfcIn
+from qepy import  ProjwfcXML,ProjwfcIn
+from yambopy import BrillouinZone
 import matplotlib.pyplot as plt
 
 # k-points map
 npoints = 50
-path_kpoints = Path([ [[0.0, 0.0, 0.0 ],'G'],
-                      [[0.0, 0.0, 1.0 ],'H'],
-                      [[1./2,0.0,1./2.],'N'],
-                      [[0.0, 0.0, 0.0 ],'G'],
-                      [[1./2, 1./2, 1./2 ],'P'],
-                      [[1./2,0.0,1./2. ],'N']], [npoints,npoints,npoints,npoints,npoints])
+intervals=[npoints,npoints,npoints,npoints,npoints]
+extra_points = { 'H': [0.0, 0.0, 1.0], 'N': [1/2, 0.0, 1/2], 'P': [1/2, 1/2, 1/2] }
+bz = BrillouinZone(ibrav=3, parameters={'a': 5.42}, path_string='GHNGPN', extra_points=extra_points, intervals=intervals)
 
 atom_s = [8]
 atom_p = [0,1,2]
@@ -39,7 +37,7 @@ d = band.get_states_helper(orbital_query=['d'])
 fig = plt.figure(figsize=(5,7))
 ax  = fig.add_axes( [ 0.12, 0.10, 0.70, 0.80 ])
 
-band.plot_eigen(ax,path_kpoints=path_kpoints,cmap='viridis',cmap2='rainbow',selected_orbitals=p,selected_orbitals_2=d)
+band.plot_eigen(ax,bz,cmap='viridis',cmap2='rainbow',selected_orbitals=p,selected_orbitals_2=d)
 
 # Plot colormap
 #
