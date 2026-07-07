@@ -633,18 +633,20 @@ class YamboExcitonDB(object):
         # bands_kpoints, band_indexes, path_car = get_path(car_kpoints, rlat, None, path,
         #                                                  debug=debug)  # None means the kpoints are already expanded
 
-        bands_kpoints, band_indexes, _ = bz.get_collinear_kpoints(car_kpoints, None, debug)
+        # bands_kpoints, band_indexes, _ = bz.get_collinear_kpoints(car_kpoints, None, debug)
+        bands_kpoints, band_indexes, _ = bz.find_collinear_grid(self.lattice, expand_kpoints=False)
 
         if debug:
             import matplotlib.pyplot as plt
             kpoints = self.lattice.red_kpoints
             rep = list(range(-1, 2))
             kpoints_rep, kpoints_idx_rep = replicate_red_kmesh(kpoints, repx=rep, repy=rep, repz=rep)
-            spoints = bz.special_kpoints('red', True)
+            kpoints_rep_car = red_car(kpoints_rep, self.lattice.rlat)
+            spoints = bz.special_kpoints('car', True)
             for i, k in zip(band_indexes, bands_kpoints):
                 x, y, z = k
                 plt.text(x, y, i)
-            plt.scatter(kpoints_rep[:, 0], kpoints_rep[:, 1])
+            plt.scatter(kpoints_rep_car[:, 0], kpoints_rep_car[:, 1])
             plt.plot(spoints[:, 0], spoints[:, 1], c='r')
             plt.scatter(bands_kpoints[:, 0], bands_kpoints[:, 1])
             plt.show()
@@ -990,8 +992,8 @@ class YamboExcitonDB(object):
             energies_db -> Energies database, can be either ElectronsDB or QPDB
             path        -> Path in the brillouin zone
         """
-        if not isinstance(bz, BrillouinZone):
-            raise ValueError('BZ argument must be a instance of BrillouinZone. Got %s instead' % type(bz))
+        # if not isinstance(bz, BrillouinZone):
+        #     raise ValueError('BZ argument must be a instance of BrillouinZone. Got %s instead' % type(bz))
 
         if self.spin_pol == 'no':
             bands_kpoints, exc_energies, exc_weights = self.exciton_bs(energies_db, bz, excitons, debug)
@@ -1001,7 +1003,7 @@ class YamboExcitonDB(object):
 
         if f: exc_weights = f(exc_weights)
         size *= 1.0 / np.max(exc_weights)
-        ybs = YambopyBandStructure(exc_energies, bands_kpoints, weights=exc_weights, bz=bz, size=size)
+        ybs = YambopyBandStructure(exc_energies, bands_kpoints, bz, weights=exc_weights, size=size)
         return ybs
 
     def plot_exciton_bs_ax(self,ax,energies_db,path,excitons,size=1,space='bands',f=None,debug=None):

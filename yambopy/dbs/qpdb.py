@@ -272,7 +272,9 @@ class YamboQPDB():
 
     def get_bs_path(self, lat, bz, debug = False, **kwargs):
 
-        bands_kpoints, bands_indexes, _ = bz.get_collinear_kpoints(lat.car_kpoints, lat.sym_car, debug=debug)
+        bands_kpoints, bands_indexes, _ = bz.find_collinear_grid(lat)
+
+        # labels = bz.path_labels_list(True)
 
         # set fermi energy
         # NOT EVIDENT IN SPIN-POLARIZED SYSTEM
@@ -287,16 +289,16 @@ class YamboQPDB():
         #red_bands_kpoints = car_red(bands_kpoints,lat.rlat)
         if self.spin == True:
             print('Spin polarized bands')
-            ks_bandstructure_up = YambopyBandStructure(self.eigenvalues_dft[bands_indexes,:,0],bands_kpoints,bz = bz, **kwargs)
-            ks_bandstructure_dw = YambopyBandStructure(self.eigenvalues_dft[bands_indexes,:,1],bands_kpoints,bz = bz,**kwargs)
-            qp_bandstructure_up = YambopyBandStructure(self.eigenvalues_qp[bands_indexes,:,0], bands_kpoints,bz = bz,**kwargs)
-            qp_bandstructure_dw = YambopyBandStructure(self.eigenvalues_qp[bands_indexes,:,1], bands_kpoints,bz = bz,**kwargs)
+            ks_bandstructure_up = YambopyBandStructure(self.eigenvalues_dft[bands_indexes,:,0],bands_kpoints,bz=bz,**kwargs)
+            ks_bandstructure_dw = YambopyBandStructure(self.eigenvalues_dft[bands_indexes,:,1],bands_kpoints,bz=bz,**kwargs)
+            qp_bandstructure_up = YambopyBandStructure(self.eigenvalues_qp[bands_indexes,:,0], bands_kpoints,bz=bz,**kwargs)
+            qp_bandstructure_dw = YambopyBandStructure(self.eigenvalues_qp[bands_indexes,:,1], bands_kpoints,bz=bz,**kwargs)
 
             return ks_bandstructure_up, ks_bandstructure_dw, qp_bandstructure_up, qp_bandstructure_dw
         else:
             print('no polarized bands')
-            ks_bandstructure = YambopyBandStructure(self.eigenvalues_dft[bands_indexes],bands_kpoints,bz = bz,**kwargs)
-            qp_bandstructure = YambopyBandStructure(self.eigenvalues_qp[bands_indexes] ,bands_kpoints,bz = bz,**kwargs)
+            ks_bandstructure = YambopyBandStructure(self.eigenvalues_dft[bands_indexes],bands_kpoints,bz=bz,**kwargs)
+            qp_bandstructure = YambopyBandStructure(self.eigenvalues_qp[bands_indexes] ,bands_kpoints,bz=bz,**kwargs)
 
             return ks_bandstructure, qp_bandstructure
 

@@ -316,19 +316,19 @@ class PwXML():
         app("nbands:   %d"%self.nbands)
         return "\n".join(lines)
 
-    def plot_eigen_ax_bak(self,ax,path_kpoints=[],xlim=(),ylim=(),color='r',**kwargs):
+    def plot_eigen_ax(self,ax,path_kpoints=[],xlim=(),ylim=(),color='r',**kwargs):
         #
         # Careful with variable path. I am substituting vy path_kpoints
         # To be done in all the code (and in the tutorials)
         #
         # argurments:
         # ls: linestyle
-        if path_kpoints:
-            if isinstance(path_kpoints,Path):
-                path_kpoints = path_kpoints.get_indexes()
-                path_ticks, path_labels = list(zip(*path_kpoints))
-            ax.set_xticks( path_ticks )
-            ax.set_xticklabels( path_labels )
+        # if path_kpoints:
+        #     if isinstance(path_kpoints,Path):
+        #         path_kpoints = path_kpoints.get_indexes()
+        #         path_ticks, path_labels = list(zip(*path_kpoints))
+        #     ax.set_xticks( path_ticks )
+        #     ax.set_xticklabels( path_labels )
         ax.set_ylabel('E (eV)')
 
         ls = kwargs.pop('ls','solid')
@@ -371,7 +371,7 @@ class PwXML():
         if xlim: ax.set_xlim(xlim)
         if ylim: ax.set_ylim(ylim)
 
-    def plot_eigen_ax(self, ax, bz, xlim = (), ylim = (), color = 'r', **kwargs):
+    def plot_eigen_ax_bak(self, ax, bz, xlim = (), ylim = (), color = 'r', **kwargs):
         kpoints_distances = bz.kpoints_distances()
         spoints_distances = bz.special_kpoints_distances(True)
         spoints_labels = bz.path_labels_list(True)
@@ -522,7 +522,7 @@ class PwXML():
         if ylim: ax.set_ylim(ylim)
 
     @add_fig_kwargs
-    def plot_eigen_bak(self,path_kpoints=[],xlim=(),ylim=()):
+    def plot_eigen(self,path_kpoints=[],xlim=(),ylim=()):
         """ plot the eigenvalues using matplotlib
         """
         import matplotlib.pyplot as plt
@@ -532,7 +532,7 @@ class PwXML():
         return fig
 
     @add_fig_kwargs
-    def plot_eigen(self, bz, xlim = (), ylim = ()):
+    def plot_eigen_bak(self, bz, xlim = (), ylim = ()):
         """ plot the eigenvalues using matplotlib
         """
         import matplotlib.pyplot as plt

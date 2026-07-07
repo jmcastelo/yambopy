@@ -7,7 +7,7 @@ import numpy as np
 from yambopy.tools.string import marquee
 from yambopy.plot.plotting import add_fig_kwargs
 #from qepy.lattice import Path
-from yambopy import BrillouinZone
+# from yambopy import BrillouinZone
 
 def exagerate_differences(ks_ebandsc,ks_ebandsp,ks_ebandsm,d=0.01,exagerate=5):
     """
@@ -78,7 +78,7 @@ class YambopyBandStructure():
     """
     _colormap = 'rainbow'
 
-    def __init__(self,bands,kpoints,bz=None,fermie=0,weights=None,spin_proj=None,**kwargs):
+    def __init__(self,bands,kpoints, bz,fermie=0,weights=None,spin_proj=None,**kwargs):
         self.bands = np.array(bands)
         self.weights = np.array(weights)     if weights   is not None else None
         self.spin_proj = np.array(spin_proj) if spin_proj is not None else None 
@@ -111,8 +111,7 @@ class YambopyBandStructure():
 
     @classmethod
     def from_dict(cls,d):
-        bz = BrillouinZone.from_dict(d['bz'])
-        instance = cls(d['bands'],d['kpoints'],bz=bz,
+        instance = cls(d['bands'],d['kpoints'],labels=d['labels'],labpos=d['labpos'],
                        fermie=d['fermie'],weights=d['weights'],**d['kwargs'])
         instance._xlim = d['_xlim']
         instance._ylim = d['_ylim']
@@ -132,8 +131,8 @@ class YambopyBandStructure():
               'weights': self.weights.tolist() if self.weights is not None else None,
               'kpoints': self.kpoints.tolist(),
               'kwargs': self.kwargs,
-              'bz': self.bz.as_dict() if self.bz is not None else None,
-              'fermie': self.fermie,
+              'labels': self.labels,
+              'bz': self.bz.as_dict(),
               '_xlim': self._xlim,
               '_ylim': self._ylim }
         return d 
@@ -211,12 +210,27 @@ class YambopyBandStructure():
             ax.xaxis.set_ticks([])
             return
 
-        for distance in self.bz.special_kpoints_distances(True):
+        distances = self.bz.special_kpoints_distances(True)
+        for distance in distances:
             ax.axvline(distance, c = 'k', ls = '--', lw = 0.5)
 
-        ax.set_xticks(self.bz.special_kpoints_distances(True))
+        ax.set_xticks(distances)
 
         ax.set_xticklabels(self.bz.path_labels_list(True))
+
+    def add_kpath_labels_bak(self, ax):
+        """
+        Add vertical lines at the positions of the high-symmetry k-points
+        I did a modification that I don't like much. To be corrected
+        """
+        if self.labels is None:
+            ax.xaxis.set_ticks([])
+            return
+
+        for pos in self.labpos:
+            ax.axvline(pos, c='k', ls='--', lw=0.5)
+        ax.set_xticks(self.labpos)
+        ax.set_xticklabels(self.labels)
 
     def plot_ax(self,ax,xlim=None,ylim=None,size=1.,ylabel=r'$\epsilon_{n\mathbf{k}}$ [eV]', alpha_weights=0.5,legend=False,**kwargs):
         """Receive an intance of matplotlib axes and add the plot"""
@@ -238,7 +252,7 @@ class YambopyBandStructure():
         x = self.distances
         y = self.bands.T-fermie
         for ib,band in enumerate(self.bands.T):
-            x = self.distances
+            # x = self.distances
             y = band-fermie
             ax.plot(x,y,c=c_bands,lw=lw_label,marker=marker,linestyle=linestyle,label=label if ib == 0 else "_nolegend_")
             # fill between 
