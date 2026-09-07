@@ -29,10 +29,10 @@ from copy import deepcopy
 
 import numpy as np
 
-from lattice_data import get_lattice_data
-from kpath_optimizer import KPathOptimizer, get_star_of_k
-from cell_to_ibrav import CellToIbrav
-from yambopy import YamboLatticeDB
+from yambopy.bz.lattice_data import get_lattice_data
+from yambopy.bz.kpath_optimizer import KPathOptimizer, get_star_of_k
+from yambopy.bz.cell_to_ibrav import CellToIbrav
+from yambopy.dbs.latticedb import YamboLatticeDB
 from yambopy.kpoints import expand_kpoints
 from yambopy.lattice import isbetween, red_car
 

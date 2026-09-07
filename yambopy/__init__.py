@@ -51,7 +51,10 @@ from yambopy.zeros import *
 from yambopy.lattice import *
 
 #brillouin zone paths
-from yambopy.brillouin import *
+from yambopy.bz.brillouin import *
+from yambopy.bz.lattice_data import *
+from yambopy.bz.cell_to_ibrav import *
+from yambopy.bz.kpath_optimizer import *
 
 #kpoint mesh operations
 from yambopy.kpoints import *
