@@ -1,23 +1,35 @@
 from qepy import PwXML
 from yambopy import BrillouinZone
+from cell_to_ibrav import CellToIbrav
 from math import sqrt
 
 # k-points map
 npoints = 50
 intervals = [int(npoints*2), int(npoints), int(sqrt(5)*npoints)]
-bz = BrillouinZone(ibrav=4, parameters={'a': 4.7, 'c': 12.0}, path_string='GMKG', intervals=intervals)
+extra_points = {'G': [0.0, 0.0, 0.0], 'M': [0.5, 0.0, 0.0], 'K': [1/3, 1/3, 0.0]}
+path = 'GMKG'
+
+bz = BrillouinZone(
+    path_string=path,
+    extra_points=extra_points,
+    intervals=intervals
+)
 
 # Class PwXML. QE database reading
 xml = PwXML(prefix='bn', path='bands')
 
+c2i = CellToIbrav(xml.cell)
+print(c2i.summary())
+
 # Class PwXML. QE database reading
-xml.plot_eigen(bz)
+xml.plot_eigen(bz.get_indices())
 
 # Alternative option with more plot control
 ## Matplotlib options 
-#fig = plt.figure()
-#ax = fig.add_subplot(1,1,1)
+import matplotlib.pyplot as plt
+fig = plt.figure()
+ax = fig.add_subplot(1,1,1)
 
 ## Class PwXML. QE database reading
-#xml.plot_eigen_ax(ax, bz)
-#plt.show()
+xml.plot_eigen_ax(ax,bz.get_indices())
+plt.show()

@@ -1,4 +1,4 @@
-from yambopy import YamboLatticeDB,YamboQPDB # Load yambo netcdf databases
+from yambopy import YamboLatticeDB, YamboQPDB # Load yambo netcdf databases
 from yambopy import BrillouinZone # Define path in k-space
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,9 +9,15 @@ from math import sqrt
 lat = YamboLatticeDB.from_db_file(filename='SAVE/ns.db1',Expand=False)
 
 # Define path in reduced coordinates using BrillouinZone class
-npoints = 10
-intervals = [int(npoints*2), int(npoints), int(sqrt(5)*npoints)]
-bz = BrillouinZone(4, {'a': lat.alat[0], 'c': lat.alat[2]/lat.alat[0]}, 'GMKG', intervals=intervals)
+path_string = 'GMKG'
+
+bz = BrillouinZone(
+    cell=lat.lat,
+    path_string=path_string,
+    npoints=100,
+    optimise=True,
+    sym_red=lat.sym_red
+)
 
 # Read QP database
 ydb  = YamboQPDB.from_db(filename='ndb.QP',folder='qp-gw')

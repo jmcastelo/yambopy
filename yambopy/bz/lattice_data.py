@@ -1,0 +1,512 @@
+from math import cos, isclose, radians, sqrt, tan
+import numpy as np
+
+
+def latex(s: str) -> str:
+    """
+    Print to terminal Greek letters
+    written in latex math mode
+    """
+    import re
+    LATEX_GREEK = {
+        r'\alpha': 'α',
+        r'\beta': 'β',
+        r'\gamma': 'γ',
+        r'\delta': 'δ',
+        r'\epsilon': 'ε',
+        r'\zeta': 'ζ',
+        r'\eta': 'η',
+        r'\theta': 'θ',
+        r'\iota': 'ι',
+        r'\kappa': 'κ',
+        r'\lambda': 'λ',
+        r'\mu': 'μ',
+        r'\nu': 'ν',
+        r'\xi': 'ξ',
+        r'\omicron': 'ο',
+        r'\pi': 'π',
+        r'\rho': 'ρ',
+        r'\sigma': 'σ',
+        r'\tau': 'τ',
+        r'\upsilon': 'υ',
+        r'\phi': 'φ',
+        r'\chi': 'χ',
+        r'\psi': 'ψ',
+        r'\omega': 'ω',
+        r'\Gamma': 'Γ',
+        r'\Delta': 'Δ',
+        r'\Theta': 'Θ',
+        r'\Lambda': 'Λ',
+        r'\Xi': 'Ξ',
+        r'\Pi': 'Π',
+        r'\Sigma': 'Σ',
+        r'\Upsilon': 'Υ',
+        r'\Phi': 'Φ',
+        r'\Psi': 'Ψ',
+        r'\Omega': 'Ω'
+    }
+
+    # remove dollars
+    s = re.sub(r'\$(.*?)\$', r'\1', s)
+    # replace latex commands
+    for symbol, unicode in LATEX_GREEK.items():
+        s = s.replace(symbol, unicode)
+
+    return s
+
+
+#: Required lattice parameters for each supported ibrav.
+IBRAV_REQUIRED_PARAMETERS: dict[int, list[str]] = {
+    1: ["a"],
+    2: ["a"],
+    3: ["a"],
+    -3: ["a"],
+    4: ["a", "c"],
+    5: ["a", "gamma"],
+    -5: ["a", "gamma"],
+    6: ["a", "c"],
+    7: ["a", "c"],
+    8: ["a", "b", "c"],
+    9: ["a", "b", "c"],
+    -9: ["a", "b", "c"],
+    10: ["a", "b", "c"],
+    11: ["a", "b", "c"],
+}
+
+
+# =============================================================================
+# Lattice data
+# =============================================================================
+
+def get_lattice_data(ibrav: int, parameters: dict[str, float] | None = None) -> tuple[np.ndarray, str, dict, str]:
+    """
+    Return lattice vectors and high-symmetry k-point information for a
+    given QE Bravais-lattice index.
+
+    Parameters
+    ----------
+    ibrav : int
+        QE Bravais-lattice index (1-11, plus -3, -5, -9).
+    parameters : dict or None
+        Lattice parameters dict (e.g. ``{'a': 3.615}``).  Required keys
+        depend on *ibrav* (see :data:`IBRAV_REQUIRED_PARAMETERS`).
+
+    Returns
+    -------
+    cell : ndarray, shape (3, 3)
+        Direct-lattice basis vectors as rows.
+    variant : str
+        Bravais-lattice variant label (e.g. ``'CUB'``, ``'FCC'``).
+    high_symmetry_points : dict[str, list[float]]
+        Fractional coordinates of high-symmetry k-points.
+    default_path : str
+        Default piecewise band-structure path (comma-separated sections).
+    """
+    if not isinstance(parameters, dict):
+        raise TypeError(f"{parameters} is not a dictionary")
+
+    if ibrav not in IBRAV_REQUIRED_PARAMETERS:
+        raise ValueError(f"ibrav: {ibrav} not supported.")
+
+    for p in IBRAV_REQUIRED_PARAMETERS[ibrav]:
+        if p not in parameters:
+            raise ValueError(
+                f"ibrav: {ibrav} lattice needs parameter: '{p}'"
+            )
+
+    for param, value in parameters.items():
+        if param in ("a", "b", "c") and value <= 0:
+            raise ValueError(f"{param} parameter must be positive.")
+
+    a = parameters.get("a", 1.0)
+    b = parameters.get("b", 1.0)
+    c = parameters.get("c", 1.0)
+    alpha = parameters.get("alpha", np.pi / 2)
+    beta = parameters.get("beta", np.pi / 2)
+    gamma = parameters.get("gamma", np.pi / 2)
+
+    match ibrav:
+        # --- CUB ---
+        case 1:
+            v1 = [a, 0, 0]
+            v2 = [0, a, 0]
+            v3 = [0, 0, a]
+            cell = np.array([v1, v2, v3])
+            variant = "CUB"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "M": [1 / 2, 1 / 2, 0],
+                "R": [1 / 2, 1 / 2, 1 / 2],
+                "X": [0, 1 / 2, 0],
+            }
+            default_path = "GXMGRX,MR"
+
+        # --- FCC ---
+        case 2:
+            v1 = [-a / 2, 0, a / 2]
+            v2 = [0, a / 2, a / 2]
+            v3 = [-a / 2, a / 2, 0]
+            cell = np.array([v1, v2, v3])
+            variant = "FCC"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "K": [-3 / 8, 3 / 8, 0],
+                "L": [0, 1 / 2, 0],
+                "U": [0, 5 / 8, 3 / 8],
+                "W": [-1 / 4, 1 / 2, 1 / 4],
+                "X": [0, 1 / 2, 1 / 2],
+            }
+            default_path = "GXWKGLUWLK,UX"
+
+        # --- BCC ---
+        case 3:
+            v1 = [a / 2, a / 2, a / 2]
+            v2 = [-a / 2, a / 2, a / 2]
+            v3 = [-a / 2, -a / 2, a / 2]
+            cell = np.array([v1, v2, v3])
+            variant = "BCC"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "H": [1 / 2, 1 / 2, -1 / 2],
+                "P": [3 / 4, 1 / 4, -1 / 4],
+                "N": [1 / 2, 0, -1 / 2],
+            }
+            default_path = "GHNGPH,PN"
+
+        # --- BCC (alternative) ---
+        case -3:
+            v1 = [-a / 2, a / 2, a / 2]
+            v2 = [a / 2, -a / 2, a / 2]
+            v3 = [a / 2, a / 2, -a / 2]
+            cell = np.array([v1, v2, v3])
+            variant = "BCC"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "H": [1 / 2, -1 / 2, 1 / 2],
+                "P": [1 / 4, 1 / 4, 1 / 4],
+                "N": [0, 0, 1 / 2],
+            }
+            default_path = "GHNGPH,PN"
+
+        # --- HEX ---
+        case 4:
+            v1 = [a, 0, 0]
+            v2 = [-a / 2, a * sqrt(3) / 2, 0]
+            v3 = [0, 0, c]
+            cell = np.array([v1, v2, v3])
+            variant = "HEX"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "A": [0, 0, 1 / 2],
+                # "H": [1 / 3, 1 / 3, 1 / 2],
+                "H": [2 / 3, -1 / 3, 1 / 2],
+                # "K": [1 / 3, 1 / 3, 0],
+                "K": [2 / 3, -1 / 3, 0],
+                "L": [1 / 2, 0, 1 / 2],
+                "M": [1 / 2, 0, 0],
+                # "M": [1 / 2, -1 / 2, 0]
+            }
+            default_path = "GMKGALHA,LM,KH"
+
+        # --- RHL (rhombohedral) ---
+        case 5:
+            cs = cos(radians(gamma))
+            tx = sqrt((1 - cs) / 2)
+            ty = sqrt((1 - cs) / 6)
+            tz = sqrt((1 + 2 * cs) / 3)
+            v1 = [a * tx, -a * ty, a * tz]
+            v2 = [0, a * 2 * ty, a * tz]
+            v3 = [-a * tx, -a * ty, a * tz]
+            cell = np.array([v1, v2, v3])
+
+            if 0 < gamma < 90:
+                variant = "RHL1"
+                eta = (1 + 4 * cos(radians(gamma))) / (2 + 4 * cos(radians(gamma)))
+                nu = 3 / 4 - eta / 2
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "B": [eta, 1 / 2, 1 - eta],
+                    "B1": [1 / 2, 1 - eta, eta - 1],
+                    "F": [1 / 2, 1 / 2, 0],
+                    "L": [1 / 2, 0, 0],
+                    "L1": [0, 0, -1 / 2],
+                    "P": [eta, nu, nu],
+                    "P1": [1 - nu, 1 - nu, 1 - eta],
+                    "P2": [nu, nu, eta - 1],
+                    "Q": [1 - nu, nu, 0],
+                    "X": [nu, 0, -nu],
+                    "Z": [1 / 2, 1 / 2, 1 / 2],
+                }
+                default_path = "GLB1,BZGX,QFP1Z,LP"
+            elif 90 < gamma < 120:
+                variant = "RHL2"
+                eta = 1 / (2 * tan(radians(gamma / 2)) ** 2)
+                nu = 3 / 4 - eta / 2
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "F": [0, 1 / 2, -1 / 2],
+                    "L": [0, 1 / 2, 0],
+                    "P": [1 - nu, 1 - nu, -nu],
+                    "P1": [nu - 1, nu, nu - 1],
+                    "Q": [eta, eta, eta],
+                    "Q1": [-eta, 1 - eta, -eta],
+                    "Z": [1 / 2, 1 / 2, -1 / 2],
+                }
+                default_path = "GPZQGFP1Q1LZ"
+            else:
+                raise ValueError("Invalid gamma value for ibrav=5. Must be in (0,90) or (90,120).")
+
+        # --- RHL (alternative) ---
+        case -5:
+            a /= sqrt(3)
+            cs = cos(radians(gamma))
+            ty = sqrt((1 - cs) / 6)
+            tz = sqrt((1 + 2 * cs) / 3)
+            u_ = tz - 2 * sqrt(2) * ty
+            v_ = tz + sqrt(2) * ty
+            v1 = [a * u_, a * v_, a * v_]
+            v2 = [a * v_, a * u_, a * v_]
+            v3 = [a * v_, a * v_, a * u_]
+            cell = np.array([v1, v2, v3])
+
+            if 0 < gamma < 90:
+                variant = "RHL1"
+                eta = (1 + 4 * cos(radians(gamma))) / (2 + 4 * cos(radians(gamma)))
+                nu = 3 / 4 - eta / 2
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "B": [eta, 1 / 2, 1 - eta],
+                    "B1": [1 / 2, 1 - eta, eta - 1],
+                    "F": [1 / 2, 1 / 2, 0],
+                    "L": [1 / 2, 0, 0],
+                    "L1": [0, 0, -1 / 2],
+                    "P": [eta, nu, nu],
+                    "P1": [1 - nu, 1 - nu, 1 - eta],
+                    "P2": [nu, nu, eta - 1],
+                    "Q": [1 - nu, nu, 0],
+                    "X": [nu, 0, -nu],
+                    "Z": [1 / 2, 1 / 2, 1 / 2],
+                }
+                default_path = "GLB1,BZGX,QFP1Z,LP"
+            elif 90 < gamma < 120:
+                variant = "RHL2"
+                eta = 1 / (2 * tan(radians(gamma / 2)) ** 2)
+                nu = 3 / 4 - eta / 2
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "F": [0, 1 / 2, -1 / 2],
+                    "L": [0, 1 / 2, 0],
+                    "P": [1 - nu, 1 - nu, -nu],
+                    "P1": [nu - 1, nu, nu - 1],
+                    "Q": [eta, eta, eta],
+                    "Q1": [-eta, 1 - eta, -eta],
+                    "Z": [1 / 2, 1 / 2, -1 / 2],
+                }
+                default_path = "GPZQGFP1Q1LZ"
+            else:
+                raise ValueError("Invalid gamma value for ibrav=-5. Must be in (0,90) or (90,120).")
+
+        # --- TET ---
+        case 6:
+            v1 = [a, 0, 0]
+            v2 = [0, a, 0]
+            v3 = [0, 0, c]
+            cell = np.array([v1, v2, v3])
+            variant = "TET"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "A": [1 / 2, 1 / 2, 1 / 2],
+                "M": [1 / 2, 1 / 2, 0],
+                "R": [0, 1 / 2, 1 / 2],
+                "X": [0, 1 / 2, 0],
+                "Z": [0, 0, 1 / 2],
+            }
+            default_path = "GXMGZRAZ,XR,MA"
+
+        # --- BCT (body-centred tetragonal) ---
+        case 7:
+            v1 = [a / 2, -a / 2, c / 2]
+            v2 = [a / 2, a / 2, c / 2]
+            v3 = [-a / 2, -a / 2, c / 2]
+            cell = np.array([v1, v2, v3])
+
+            if isclose(a, c, rel_tol=1e-5):
+                raise ValueError("For ibrav=7, a and c must differ. Choose either c < a or c > a.")
+            elif c < a:
+                variant = "BCT1"
+                eta = (1 + c ** 2 / a ** 2) / 4
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "M": [1 / 2, 1 / 2, -1 / 2],
+                    "N": [1 / 2, 1 / 2, 0],
+                    "P": [1 / 4, 3 / 4, -1 / 4],
+                    "X": [0, 1 / 2, -1 / 2],
+                    "Z": [eta, eta, eta],
+                    "Z1": [1 - eta, 1 - eta, -eta],
+                }
+                default_path = "GXMGZPNZ1M,XP"
+            else:
+                variant = "BCT2"
+                eta = (1 + a ** 2 / c ** 2) / 4
+                zeta = a ** 2 / (2 * c ** 2)
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "N": [1 / 2, 1 / 2, 0],
+                    "P": [1 / 4, 3 / 4, -1 / 4],
+                    "S": [eta, eta, -eta],
+                    "S1": [1 - eta, 1 - eta, eta],
+                    "X": [0, 1 / 2, -1 / 2],
+                    "Y": [zeta, 1 / 2, -1 / 2],
+                    "Y1": [1 / 2, 1 - zeta, zeta],
+                    "Z": [1 / 2, 1 / 2, 1 / 2],
+                }
+                default_path = "GXYSGZS1NPY1Z,XP"
+
+        # --- ORC (simple orthorhombic) ---
+        case 8:
+            v1 = [a, 0, 0]
+            v2 = [0, b, 0]
+            v3 = [0, 0, c]
+            cell = np.array([v1, v2, v3])
+            variant = "ORC"
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "R": [1 / 2, 1 / 2, 1 / 2],
+                "S": [1 / 2, 1 / 2, 0],
+                "T": [0, 1 / 2, 1 / 2],
+                "U": [1 / 2, 0, 1 / 2],
+                "X": [1 / 2, 0, 0],
+                "Y": [0, 1 / 2, 0],
+                "Z": [0, 0, 1 / 2],
+            }
+            default_path = "GXSYGZURTZ,YT,UX,SR"
+
+        # --- ORCC (C-face-centred orthorhombic) ---
+        case 9:
+            v1 = [a / 2, b / 2, 0]
+            v2 = [-a / 2, b / 2, 0]
+            v3 = [0, 0, c]
+            cell = np.array([v1, v2, v3])
+            variant = "ORCC"
+            zeta = (1 + a ** 2 / b ** 2) / 4
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "A": [zeta, -zeta, 1 / 2],
+                "A1": [1 - zeta, zeta, 1 / 2],
+                "R": [1 / 2, 0, 1 / 2],
+                "S": [1 / 2, 0, 0],
+                "T": [1 / 2, 1 / 2, 1 / 2],
+                "X": [zeta, -zeta, 0],
+                "X1": [1 - zeta, zeta, 0],
+                "Y": [1 / 2, 1 / 2, 0],
+                "Z": [0, 0, 1 / 2],
+            }
+            default_path = "GXSRAZGYX1A1TY,ZT"
+
+        # --- ORCC (alternative, A-face) ---
+        case -9:
+            v1 = [a / 2, -b / 2, 0]
+            v2 = [a / 2, b / 2, 0]
+            v3 = [0, 0, c]
+            cell = np.array([v1, v2, v3])
+            variant = "ORCC"
+            zeta = (1 + a ** 2 / b ** 2) / 4
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "A": [zeta, zeta, 1 / 2],
+                "A1": [-zeta, 1 - zeta, 1 / 2],
+                "R": [0, 1 / 2, 1 / 2],
+                "S": [0, 1 / 2, 0],
+                "T": [-1 / 2, 1 / 2, 1 / 2],
+                "X": [zeta, zeta, 0],
+                "X1": [-zeta, 1 - zeta, 0],
+                "Y": [-1 / 2, 1 / 2, 0],
+                "Z": [0, 0, 1 / 2],
+            }
+            default_path = "GXSRAZGYX1A1TY,ZT"
+
+        # --- ORCF (F-face-centred orthorhombic) ---
+        case 10:
+            v1 = [a / 2, 0, c / 2]
+            v2 = [a / 2, b / 2, 0]
+            v3 = [0, b / 2, c / 2]
+            cell = np.array([v1, v2, v3])
+
+            ia = 1 / a ** 2
+            ibc = 1 / b ** 2 + 1 / c ** 2
+            if isclose(ia, ibc, rel_tol=1e-5):
+                variant = "ORCF3"
+            elif ia < ibc:
+                variant = "ORCF2"
+            else:
+                variant = "ORCF1"
+
+            if variant in ("ORCF1", "ORCF3"):
+                zeta = (1 + a ** 2 / b ** 2 - a ** 2 / c ** 2) / 4
+                eta = (1 + a ** 2 / b ** 2 + a ** 2 / c ** 2) / 4
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "A": [1 / 2 + zeta, zeta, 1 / 2],
+                    "A1": [1 / 2 - zeta, 1 - zeta, 1 / 2],
+                    "L": [1 / 2, 1 / 2, 1 / 2],
+                    "T": [1 / 2, 1 / 2, 1],
+                    "X": [eta, eta, 0],
+                    "X1": [1 - eta, 1 - eta, 1],
+                    "Y": [0, 1 / 2, 1 / 2],
+                    "Z": [1 / 2, 0, 1 / 2],
+                }
+                if variant == "ORCF1":
+                    default_path = "GYTZGXA1Y,TX1,XAZ,LG"
+                else:
+                    default_path = "GYTZGXA1Y,XAZ,LG"
+            else:
+                eta = (1 + a ** 2 / b ** 2 - a ** 2 / c ** 2) / 4
+                delta = (1 + b ** 2 / a ** 2 - b ** 2 / c ** 2) / 4
+                phi = (1 + c ** 2 / b ** 2 - c ** 2 / a ** 2) / 4
+                high_symmetry_points = {
+                    "G": [0, 0, 0],
+                    "C": [1 / 2 - eta, 1 - eta, 1 / 2],
+                    "C1": [1 / 2 + eta, eta, 1 / 2],
+                    "D": [1 / 2, 1 - delta, 1 / 2 - delta],
+                    "D1": [1 / 2, delta, 1 / 2 + delta],
+                    "L": [1 / 2, 1 / 2, 1 / 2],
+                    "H": [1 / 2 - phi, 1 / 2, 1 - phi],
+                    "H1": [1 / 2 + phi, 1 / 2, phi],
+                    "X": [1 / 2, 1 / 2, 0],
+                    "Y": [0, 1 / 2, 1 / 2],
+                    "Z": [1 / 2, 0, 1 / 2],
+                }
+                default_path = "GYCDXGZD1HC,C1Z,XH1,HY,LG"
+
+        # --- ORCI (I-body-centred orthorhombic) ---
+        case 11:
+            v1 = [a / 2, b / 2, c / 2]
+            v2 = [-a / 2, b / 2, c / 2]
+            v3 = [-a / 2, -b / 2, c / 2]
+            cell = np.array([v1, v2, v3])
+            variant = "ORCI"
+            mu = (a ** 2 + b ** 2) / (4 * c ** 2)
+            delta = (b ** 2 - a ** 2) / (4 * c ** 2)
+            zeta = (1 + a ** 2 / c ** 2) / 4
+            eta = (1 + b ** 2 / c ** 2) / 4
+            high_symmetry_points = {
+                "G": [0, 0, 0],
+                "L": [1 / 2 - delta, -mu, delta - 1 / 2],
+                "L1": [1 / 2 + delta, mu, -1 / 2 - delta],
+                "L2": [1 - mu, 1 / 2 - delta, mu],
+                "R": [1 / 2, 0, 0],
+                "S": [1 / 2, 1 / 2, 0],
+                "T": [1 / 2, 0, -1 / 2],
+                "W": [3 / 4, 1 / 4, -1 / 4],
+                "X": [zeta, -zeta, -zeta],
+                "X1": [1 - zeta, zeta, zeta],
+                "Y": [eta, eta, -eta],
+                "Y1": [1 - eta, 1 - eta, eta],
+                "Z": [1 / 2, 1 / 2, 1 / 2],
+            }
+            default_path = "GXLTWRX1ZGYSW,L1Y,Y1Z"
+
+        case _:
+            raise ValueError(f"ibrav: {ibrav} not supported.")
+
+    return cell, variant, high_symmetry_points, default_path
